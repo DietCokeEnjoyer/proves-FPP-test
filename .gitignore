@@ -15,6 +15,7 @@ lib/zephyr-workspace/*
 /site/
 
 # Misc
+/.venv/
 /venv/
 /keys/
 /fprime-venv/
