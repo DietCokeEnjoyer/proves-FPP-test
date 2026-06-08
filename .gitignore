@@ -33,6 +33,7 @@ Framing/uv.lock
 *.uf2
 *.hex
 *.elf
+/tools/openocd
 
 **/__pycache__/
 **/*.egg-info/
@@ -49,6 +50,11 @@ UploadsFilesystem/AuthenticateFiles/spi_dict.txt
 Framing/src/sequence_number.bin
 
 lib/fprime-extras/
+
+# YAMCS generated dictionary (built from build-artifacts via make yamcs-dict)
+yamcs/yamcs-data/mdb/*.xml
+# YAMCS runtime data directory (created at startup by fprime-yamcs)
+yamcs/yamcs-runtime/
 
 # CircuitPython passthrough
 /circuit-python-passthrough/firmware.uf2
