@@ -44,6 +44,9 @@ module Components {
         @ Accepts SafeModeReason - pass NONE to default to EXTERNAL_REQUEST
         async input port forceSafeMode: Components.ForceSafeModeWithReason
 
+        @ Port to enter normal mode / exit safe mode
+        async input port forceNormalMode: Fw.Signal 
+
         @ Port to query the current system mode
         sync input port getMode: Components.GetSystemMode
 
