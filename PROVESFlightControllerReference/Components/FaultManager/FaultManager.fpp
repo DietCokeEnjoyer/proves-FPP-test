@@ -1,12 +1,14 @@
-module components{
+module Components{
     
-    @ Recovery Manager States
-    enum RecState {
-
+    @ Fault Types handled by the manager
+    enum FaultType{
+        NONE = 0
+        LOW_BATTERY = 1
+        #TODO: Add Fault types
     }
 
-    @ rec manager
-    active component RecoveryManager{
+    @
+    active component FaultManager{
         # ----------------------------------------------------------------------
         # Input Ports
         # ----------------------------------------------------------------------
@@ -29,7 +31,7 @@ module components{
         output port setModeSafe: Components.ForceSafeModeWithReason
 
         @ Sets the mode manager to Normal
-        output port setModeNormal: 
+        output port setModeNormal: Fw.Signal # Just a trigger, no data passed.
 
         # ----------------------------------------------------------------------
         # Parameters
@@ -43,6 +45,37 @@ module components{
 
         @ Debounce time for voltage transitions (seconds)
         param SafeModeDebounceSeconds: U32 default 10
+
+        # ----------------------------------------------------------------------
+        # Telemetry
+        # ----------------------------------------------------------------------
+
+        @ The current fault being handled
+        telemetry CurrentFault: FaultType
+
+        @ Consecutive seconds the voltage has been below the entry threshold
+        telemetry LowVoltageCounter: U32
+
+        @ Consecutive seconds the voltage has been above the recovery threshold
+        telemetry RecoveryVoltageCounter: U32
+
+        # ----------------------------------------------------------------------
+        # Events
+        # ----------------------------------------------------------------------
+
+        event FaultDetected(
+            fault: FaultType @< The type of fault triggered.
+            faultValue: F32 @< The sensor reading related to the fault. Ex: V, °C
+        )\
+        severity warning high \
+        format "Fault Detected: {} with reading {}. Entering Safe Mode."
+        
+        event FaultRecovered(
+            fault: FaultType @< The type of fault recovered from.
+            faultValue: F32 @< The related sensor reading at the time of recovery.
+        )\
+        severity activity high \
+        format "Fault Recovered: {} with reading {}. Entering Normal Mode."
 
 
         ###############################################################################
