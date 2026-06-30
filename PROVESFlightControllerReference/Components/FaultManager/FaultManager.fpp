@@ -16,13 +16,12 @@ module Components{
         @ Port receiving calls from the rate group (1Hz)
         sync input port run: Svc.Sched
 
-        @ Checks the SystemMode
-        sync input port getSystemMode: Components.GetSystemMode
-
-
         # ----------------------------------------------------------------------
         # Output Ports
         # ----------------------------------------------------------------------
+        
+        @ Checks the SystemMode
+        output port getSystemMode: Components.GetSystemMode
 
         @ Port to get system voltage from INA219 manager
         output port voltageGet: Drv.VoltageGet
@@ -45,6 +44,15 @@ module Components{
 
         @ Debounce time for voltage transitions (seconds)
         param SafeModeDebounceSeconds: U32 default 10
+
+
+        # ----------------------------------------------------------------------
+        # Commands
+        # ----------------------------------------------------------------------
+
+        @ Manually reset the FaultType to NONE
+        async command CLEAR_FAULT()
+
 
         # ----------------------------------------------------------------------
         # Telemetry

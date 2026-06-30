@@ -26,3 +26,6 @@ add_fprime_subdirectory("${CMAKE_CURRENT_LIST_DIR}/ResetManager/")
 add_fprime_subdirectory("${CMAKE_CURRENT_LIST_DIR}/StartupManager/")
 add_fprime_subdirectory("${CMAKE_CURRENT_LIST_DIR}/ThermalManager/")
 add_fprime_subdirectory("${CMAKE_CURRENT_LIST_DIR}/Watchdog")
+
+# SCALAR Additions
+add_fprime_subdirectory("${CMAKE_CURRENT_LIST_DIR}/FaultManager")
