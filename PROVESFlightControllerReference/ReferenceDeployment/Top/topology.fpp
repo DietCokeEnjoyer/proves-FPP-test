@@ -118,6 +118,9 @@ module ReferenceDeployment {
 
     instance picoTempManager
 
+    # SCALAR Additions
+    instance faultManager
+
   # ----------------------------------------------------------------------
   # Pattern graph specifiers
   # ----------------------------------------------------------------------
@@ -280,7 +283,7 @@ module ReferenceDeployment {
       rateGroup1Hz.RateGroupMemberOut[13] -> FileHandling.fileDownlink.Run
       rateGroup1Hz.RateGroupMemberOut[14] -> startupManager.run
       rateGroup1Hz.RateGroupMemberOut[15] -> powerMonitor.run
-      rateGroup1Hz.RateGroupMemberOut[16] -> modeManager.run
+      rateGroup1Hz.RateGroupMemberOut[16] -> faultManager.run
       rateGroup1Hz.RateGroupMemberOut[17] -> adcs.run
       rateGroup1Hz.RateGroupMemberOut[18] -> thermalManager.run
       rateGroup1Hz.RateGroupMemberOut[19] -> ComCcsdsLora.authenticationRouter.run
@@ -450,8 +453,6 @@ module ReferenceDeployment {
     }
 
     connections ModeManager {
-      # Voltage monitoring from system power manager
-      modeManager.voltageGet -> ina219SysManager.voltageGet
 
       # Connection for clean shutdown notification from ResetManager and Watchdog
       # Allows ModeManager to detect unintended reboots
@@ -489,6 +490,20 @@ module ReferenceDeployment {
 
     connections FatalHandler {
       CdhCore.fatalHandler.stopWatchdog -> watchdog.stop
+
+    }
+
+    #SCALAR Added Components
+
+    connections FaultManager{
+      # Voltage monitoring from system power manager
+      faultManager.voltageGet -> ina219SysManager.voltageGet
+
+      faultManager.getSystemMode -> modeManager.getMode
+
+      faultManager.setModeNormal -> modeManager.forceNormalMode
+
+      faultManager.setModeSafe -> modeManager.forceSafeMode
 
     }
 

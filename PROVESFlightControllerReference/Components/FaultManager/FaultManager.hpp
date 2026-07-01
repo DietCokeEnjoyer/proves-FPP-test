@@ -1,6 +1,6 @@
 // ======================================================================
 // \title  FaultManager.hpp
-// \author meeple
+// \author Autocoder / Elias Dahl
 // \brief  hpp file for FaultManager component implementation class
 // ======================================================================
 
@@ -47,6 +47,28 @@ class FaultManager final : public FaultManagerComponentBase {
     void CLEAR_FAULT_cmdHandler(FwOpcodeType opCode,  //!< The opcode
                                 U32 cmdSeq            //!< The command sequence number
                                 ) override;
+
+  private:
+    // ----------------------------------------------------------------------
+    // Helper Methods
+    // ----------------------------------------------------------------------
+
+    //! Helper method to get the current system voltage
+    F32 getCurrentVoltage(bool& valid);
+
+  private:
+    // ----------------------------------------------------------------------
+    // State Variables
+    // ----------------------------------------------------------------------
+    
+    //! Tracks the current fault, defaults to NONE
+    FaultManager_FaultType m_currentFault = FaultManager_FaultType::NONE;
+    
+    //! Debounce counter for entering low voltage fault
+    U32 m_lowVoltageCounter = 0;
+    
+    //! Debounce counter for recovering from low voltage fault
+    U32 m_recoveryCounter = 0;
 };
 
 }  // namespace Components

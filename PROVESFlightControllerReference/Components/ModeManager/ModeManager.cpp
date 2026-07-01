@@ -21,10 +21,7 @@ ModeManager ::ModeManager(const char* const compName)
     : ModeManagerComponentBase(compName),
       m_mode(SystemMode::NORMAL),
       m_safeModeEntryCount(0),
-      m_runCounter(0),
-      m_safeModeReason(Components::SafeModeReason::NONE),
-      m_safeModeVoltageCounter(0),
-      m_recoveryVoltageCounter(0) {
+      m_safeModeReason(Components::SafeModeReason::NONE){
     // Compile-time verification that internal SystemMode enum matches FPP-generated enum
     static_assert(static_cast<U8>(SystemMode::SAFE_MODE) == static_cast<U8>(Components::SystemMode::SAFE_MODE),
                   "Internal SAFE_MODE value must match FPP enum");
@@ -42,76 +39,6 @@ void ModeManager ::init(FwSizeType queueDepth, FwEnumStoreType instance) {
 // ----------------------------------------------------------------------
 // Handler implementations for user-defined typed input ports
 // ----------------------------------------------------------------------
-
-void ModeManager ::run_handler(FwIndexType portNum, U32 context) {
-    // Increment run counter (1Hz tick counter)
-    this->m_runCounter++;
-
-    // Get current voltage (used by mode-specific voltage monitoring)
-    bool valid = false;
-    F32 voltage = this->getCurrentVoltage(valid);
-
-    // Get configurable parameters
-    Fw::ParamValid paramValid;
-    F32 entryVoltage = this->paramGet_SafeModeEntryVoltage(paramValid);
-    F32 recoveryVoltage = this->paramGet_SafeModeRecoveryVoltage(paramValid);
-    U32 debounceSeconds = this->paramGet_SafeModeDebounceSeconds(paramValid);
-
-    // Mode-specific voltage monitoring
-    if (this->m_mode == SystemMode::NORMAL) {
-        // Low-voltage protection for normal mode -> safe mode entry:
-        // - Threshold: configurable via SafeModeEntryVoltage parameter (default 6.7V)
-        // - Debounce: configurable via SafeModeDebounceSeconds parameter (default 10s)
-        bool isFault = !valid || (voltage < entryVoltage);
-
-        if (isFault) {
-            this->m_safeModeVoltageCounter++;
-
-            if (this->m_safeModeVoltageCounter >= debounceSeconds) {
-                // Trigger automatic entry into safe mode
-                this->runSafeModeSequence();
-                this->log_WARNING_HI_AutoSafeModeEntry(Components::SafeModeReason::LOW_BATTERY, valid ? voltage : 0.0f);
-                this->enterSafeMode(Components::SafeModeReason::LOW_BATTERY);
-                this->m_safeModeVoltageCounter = 0;  // Reset counter
-            }
-        } else {
-            // Voltage OK and valid - reset counter
-            this->m_safeModeVoltageCounter = 0;
-        }
-
-        // Reset recovery counter when in normal mode
-        this->m_recoveryVoltageCounter = 0;
-
-    } else if (this->m_mode == SystemMode::SAFE_MODE) {
-        // Auto-recovery from safe mode (only if reason is LOW_BATTERY):
-        // - Threshold: configurable via SafeModeRecoveryVoltage parameter (default 8.0V)
-        // - Debounce: configurable via SafeModeDebounceSeconds parameter (default 10s)
-        // - SYSTEM_FAULT or GROUND_COMMAND require manual EXIT_SAFE_MODE command
-        if (this->m_safeModeReason == Components::SafeModeReason::LOW_BATTERY) {
-            if (valid && voltage > recoveryVoltage) {
-                this->m_recoveryVoltageCounter++;
-
-                if (this->m_recoveryVoltageCounter >= debounceSeconds) {
-                    // Trigger automatic exit from safe mode
-                    this->exitSafeModeAutomatic(voltage);
-                    this->m_recoveryVoltageCounter = 0;  // Reset counter
-                }
-            } else {
-                // Voltage not recovered yet - reset counter
-                this->m_recoveryVoltageCounter = 0;
-            }
-        }
-        // Note: If reason is SYSTEM_FAULT, GROUND_COMMAND, or EXTERNAL_REQUEST, no auto-recovery
-
-        // Reset safe mode entry counter when in safe mode
-        this->m_safeModeVoltageCounter = 0;
-    }
-
-    // Update telemetry
-    this->tlmWrite_CurrentMode(static_cast<U8>(this->m_mode));
-    this->tlmWrite_CurrentSafeModeReason(this->m_safeModeReason);
-    this->tlmWrite_SafeModeEntryCount(this->m_safeModeEntryCount);
-}
 
 void ModeManager ::forceSafeMode_handler(FwIndexType portNum, const Components::SafeModeReason& reason) {
     // Force entry into safe mode (called by other components)
@@ -132,6 +59,13 @@ void ModeManager ::forceSafeMode_handler(FwIndexType portNum, const Components::
         this->log_WARNING_LO_SafeModeRequestIgnored();
     }
     // Note: Request ignored if already in SAFE_MODE
+}
+
+void ModeManager ::forceNormalMode_handler(FwIndexType portNum){
+    // Exit SAFE if not already in Normal
+    if(this->m_mode == SystemMode::SAFE_MODE){
+        this->exitSafeMode();
+    }
 }
 
 void ModeManager ::runSafeModeSequence() {
@@ -449,31 +383,6 @@ void ModeManager ::exitSafeMode() {
     this->saveState();
 }
 
-void ModeManager ::exitSafeModeAutomatic(F32 voltage) {
-    // Automatic exit from safe mode due to voltage recovery
-    // Only called when safe mode reason is LOW_BATTERY and voltage > 8.0V
-    this->m_mode = SystemMode::NORMAL;
-    this->m_safeModeReason = Components::SafeModeReason::NONE;  // Clear reason on exit
-
-    this->log_ACTIVITY_HI_AutoSafeModeExit(voltage);
-
-    // Turn on components (restore normal operation)
-    this->turnOnComponents();
-
-    // Update telemetry
-    this->tlmWrite_CurrentMode(static_cast<U8>(this->m_mode));
-    this->tlmWrite_CurrentSafeModeReason(this->m_safeModeReason);
-
-    // Notify other components of mode change with new mode value
-    if (this->isConnected_modeChanged_OutputPort(0)) {
-        Components::SystemMode fppMode = static_cast<Components::SystemMode::T>(this->m_mode);
-        this->modeChanged_out(0, fppMode);
-    }
-
-    // Save state
-    this->saveState();
-}
-
 void ModeManager ::turnOffNonCriticalComponents() {
     for (FwIndexType i = 0; i < this->getNum_loadSwitchTurnOff_OutputPorts(); i++) {
         if (!this->isConnected_loadSwitchTurnOff_OutputPort(i)) {
@@ -490,20 +399,6 @@ void ModeManager ::turnOnComponents() {
         }
         this->loadSwitchTurnOn_out(i);
     }
-}
-
-F32 ModeManager ::getCurrentVoltage(bool& valid) {
-    // Call the voltage get port to get current system voltage
-    if (this->isConnected_voltageGet_OutputPort(0)) {
-        F64 voltage = this->voltageGet_out(0);
-        valid = true;
-        return static_cast<F32>(voltage);  // Convert from F64 to F32
-    }
-
-    // Port is not connected - voltage reading is INVALID
-    // Do NOT return a fake value that could mask a real brown-out condition
-    valid = false;
-    return 0.0f;
 }
 
 }  // namespace Components

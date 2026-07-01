@@ -3,4 +3,7 @@ register_fprime_library(
         "${CMAKE_CURRENT_LIST_DIR}/FaultManager.fpp"
     SOURCES
         "${CMAKE_CURRENT_LIST_DIR}/FaultManager.cpp"
+    DEPENDS
+        PROVESFlightControllerReference_Components_ModeManager
+        PROVESFlightControllerReference_Components_Drv_Ina219Manager
 )

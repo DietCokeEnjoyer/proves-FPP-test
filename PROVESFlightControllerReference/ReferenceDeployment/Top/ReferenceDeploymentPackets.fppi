@@ -130,6 +130,10 @@ telemetry packets ReferenceDeploymentPackets {
     ReferenceDeployment.modeManager.CurrentMode
     ReferenceDeployment.modeManager.SafeModeEntryCount
     ReferenceDeployment.modeManager.CurrentSafeModeReason
+
+    # SCALAR Additions
+    # This has some overlap with CurrentSafeModeReason
+    ReferenceDeployment.faultManager.CurrentFault
   }
 
   packet HealthWarnings id 3 group 5 {

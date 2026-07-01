@@ -34,9 +34,6 @@ module Components {
         # Input Ports
         # ----------------------------------------------------------------------
 
-        @ Port receiving calls from the rate group (1Hz)
-        sync input port run: Svc.Sched
-
         @ Port receiving completion status of the safe mode sequence
         sync input port completeSequence: Fw.CmdResponse
 
@@ -69,13 +66,9 @@ module Components {
         @ Ports to turn off LoadSwitch instances (6 face switches + 2 payload switches)
         output port loadSwitchTurnOff: [8] Fw.Signal
 
-        @ Port to get system voltage from INA219 manager
-        output port voltageGet: Drv.VoltageGet
-
         # ----------------------------------------------------------------------
         # Commands
         # ----------------------------------------------------------------------
-
 
         @ Command to force system into safe mode
         sync command FORCE_SAFE_MODE()
@@ -192,15 +185,6 @@ module Components {
         # ----------------------------------------------------------------------
         # Parameters
         # ----------------------------------------------------------------------
-
-        @ Voltage threshold for safe mode entry (V)
-        param SafeModeEntryVoltage: F32 default 6.7
-
-        @ Voltage threshold for safe mode recovery (V)
-        param SafeModeRecoveryVoltage: F32 default 8.0
-
-        @ Debounce time for voltage transitions (seconds)
-        param SafeModeDebounceSeconds: U32 default 10
 
         param SAFEMODE_SEQUENCE_FILE: string default "/seq/enter_safe.bin"
 

@@ -37,13 +37,6 @@ class ModeManager : public ModeManagerComponentBase {
     // Handler implementations for user-defined typed input ports
     // ----------------------------------------------------------------------
 
-    //! Handler implementation for run
-    //!
-    //! Port receiving calls from the rate group (1Hz)
-    void run_handler(FwIndexType portNum,  //!< The port number
-                     U32 context           //!< The call order
-                     ) override;
-
     //! Handler implementation for completeSequence
     //!
     //! Port receiving completion status from the safe mode sequence
@@ -59,6 +52,12 @@ class ModeManager : public ModeManagerComponentBase {
     //! @param reason The reason for entering safe mode (NONE defaults to EXTERNAL_REQUEST)
     void forceSafeMode_handler(FwIndexType portNum,                      //!< The port number
                                const Components::SafeModeReason& reason  //!< The safe mode reason
+                               ) override;
+                               
+    //! Handler implementation for forceNormalMode
+    //!
+    //! Port to force Normal Mode entry (callable by other components)
+    void forceNormalMode_handler(FwIndexType portNum    //!< The port number
                                ) override;
 
     //! Handler implementation for getMode
@@ -114,9 +113,6 @@ class ModeManager : public ModeManagerComponentBase {
     //! Exit safe mode (manual command)
     void exitSafeMode();
 
-    //! Exit safe mode automatically due to voltage recovery
-    void exitSafeModeAutomatic(F32 voltage);
-
     //! Turn off non-critical components
     void turnOffNonCriticalComponents();
 
@@ -125,12 +121,6 @@ class ModeManager : public ModeManagerComponentBase {
 
     // run the safe mode seauence
     void runSafeModeSequence();
-
-    //! Get current voltage from INA219 system power manager
-    //! Queries voltage via the voltageGet output port
-    //! \param valid Output parameter indicating if the voltage reading is valid
-    //! \return Current voltage (only valid if valid parameter is set to true)
-    F32 getCurrentVoltage(bool& valid);
 
     // ----------------------------------------------------------------------
     // Private enums and types
@@ -153,10 +143,7 @@ class ModeManager : public ModeManagerComponentBase {
 
     SystemMode m_mode;                            //!< Current system mode
     U32 m_safeModeEntryCount;                     //!< Counter for safe mode entries
-    U32 m_runCounter;                             //!< Counter for run handler calls (1Hz)
     Components::SafeModeReason m_safeModeReason;  //!< Current safe mode reason
-    U32 m_safeModeVoltageCounter;                 //!< Counter for low voltage in NORMAL mode
-    U32 m_recoveryVoltageCounter;                 //!< Counter for voltage recovery in SAFE_MODE
 
     // ----------------------------------------------------------------------
     // Constants

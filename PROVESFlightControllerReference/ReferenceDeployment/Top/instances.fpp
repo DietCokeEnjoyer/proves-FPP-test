@@ -43,10 +43,15 @@ module ReferenceDeployment {
     stack size Default.STACK_SIZE \
     priority 3
 
-  instance modeManager: Components.ModeManager base id 0x1000A000 \
+  instance faultManager: Components.FaultManager base id 0x1005B000 \
     queue size Default.QUEUE_SIZE \
     stack size Default.STACK_SIZE \
     priority 4
+
+  instance modeManager: Components.ModeManager base id 0x1000A000 \
+    queue size Default.QUEUE_SIZE \
+    stack size Default.STACK_SIZE \
+    priority 5
 
   instance cmdSeq: Svc.CmdSequencer base id 0x10006000 \
     queue size Default.QUEUE_SIZE * 2 \
@@ -67,7 +72,6 @@ module ReferenceDeployment {
     queue size Default.QUEUE_SIZE \
     stack size Default.STACK_SIZE \
     priority 13
-
 
   # ----------------------------------------------------------------------
   # Queued component instances
