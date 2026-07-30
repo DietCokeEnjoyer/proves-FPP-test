@@ -43,6 +43,13 @@ class MagneticFieldModel final : public MagneticFieldModelComponentBase {
     void run_handler(FwIndexType portNum,  //!< The port number
                      U32 context           //!< The call order
                      ) override;
+
+    //! Convert decimal year to Greenwich Mean Sidereal Time, in radians
+    F32 computeGmstRad(F32 decYear);
+
+    // The last magnetic field computed
+    MagFieldEci m_lastField;
+
 };
 
 }  // namespace Components
