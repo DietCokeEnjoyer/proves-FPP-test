@@ -200,7 +200,10 @@ module ReferenceDeployment {
   instance tmp112BattCell4Manager: Drv.Tmp112Manager base id 0x1004B000
 
   # Attitude Determination and Control System (ADCS)
-  instance adcs: Components.ADCS base id 0x1004C000
+  # Original light gathering "ADCS" component renamed to Old_ADCS. 
+  # Keeping it for now until light sensor data gathering is moved into its own component.
+  # Should remove the component + this instance when done.
+  instance oldadcs: Components.OLD_ADCS base id 0x1004C000  
   instance veml6031Face0Manager: Drv.Veml6031Manager base id 0x1004D000
   instance veml6031Face1Manager: Drv.Veml6031Manager base id 0x1004E000
   instance veml6031Face2Manager: Drv.Veml6031Manager base id 0x1004F000
