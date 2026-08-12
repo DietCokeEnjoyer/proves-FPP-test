@@ -1,27 +1,27 @@
 // ======================================================================
-// \title  ADCS.hpp
-// \brief  hpp file for ADCS component implementation class
+// \title  Old_ADCS.hpp
+// \brief  hpp file for Old_ADCS component implementation class
 // ======================================================================
 
-#ifndef Components_ADCS_HPP
-#define Components_ADCS_HPP
+#ifndef Components_Old_ADCS_HPP
+#define Components_Old_ADCS_HPP
 
-#include "PROVESFlightControllerReference/Components/ADCS/ADCSComponentAc.hpp"
+#include "PROVESFlightControllerReference/Components/Old_ADCS/Old_ADCSComponentAc.hpp"
 
 namespace Components {
 
-class ADCS final : public ADCSComponentBase {
+class Old_ADCS final : public Old_ADCSComponentBase {
   public:
     // ----------------------------------------------------------------------
     // Component construction and destruction
     // ----------------------------------------------------------------------
 
-    //! Construct ADCS object
-    ADCS(const char* const compName  //!< The component name
+    //! Construct Old_ADCS object
+    Old_ADCS(const char* const compName  //!< The component name
     );
 
-    //! Destroy ADCS object
-    ~ADCS();
+    //! Destroy Old_ADCS object
+    ~Old_ADCS();
 
   private:
     // ----------------------------------------------------------------------

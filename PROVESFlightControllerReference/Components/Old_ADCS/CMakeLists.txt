@@ -12,7 +12,7 @@
 
 register_fprime_library(
     AUTOCODER_INPUTS
-        "${CMAKE_CURRENT_LIST_DIR}/ADCS.fpp"
+        "${CMAKE_CURRENT_LIST_DIR}/Old_ADCS.fpp"
     SOURCES
-        "${CMAKE_CURRENT_LIST_DIR}/ADCS.cpp"
+        "${CMAKE_CURRENT_LIST_DIR}/Old_ADCS.cpp"
 )

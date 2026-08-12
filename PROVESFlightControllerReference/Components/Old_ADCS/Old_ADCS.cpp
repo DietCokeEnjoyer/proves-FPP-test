@@ -1,9 +1,9 @@
 // ======================================================================
-// \title  ADCS.cpp
-// \brief  cpp file for ADCS component implementation class
+// \title  Old_ADCS.cpp
+// \brief  cpp file for Old_ADCS component implementation class
 // ======================================================================
 
-#include "PROVESFlightControllerReference/Components/ADCS/ADCS.hpp"
+#include "PROVESFlightControllerReference/Components/Old_ADCS/Old_ADCS.hpp"
 
 #include <Fw/Types/Assert.hpp>
 
@@ -13,15 +13,15 @@ namespace Components {
 // Component construction and destruction
 // ----------------------------------------------------------------------
 
-ADCS::ADCS(const char* const compName) : ADCSComponentBase(compName) {}
+Old_ADCS::Old_ADCS(const char* const compName) : ADCSComponentBase(compName) {}
 
-ADCS::~ADCS() {}
+Old_ADCS::~Old_ADCS() {}
 
 // ----------------------------------------------------------------------
 // Handler implementations for typed input ports
 // ----------------------------------------------------------------------
 
-void ADCS::run_handler(FwIndexType portNum, U32 context) {
+void Old_ADCS::run_handler(FwIndexType portNum, U32 context) {
     Fw::Success condition;
 
     // Visible light

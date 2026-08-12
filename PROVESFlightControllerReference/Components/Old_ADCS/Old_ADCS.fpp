@@ -1,6 +1,6 @@
 module Components {
     @ Attitude Determination and Control Component for F Prime FSW framework.
-    passive component ADCS {
+    passive component Old_ADCS {
         sync input port run: Svc.Sched
 
         @ The number of light sensors on the ADCS
