@@ -26,7 +26,9 @@ constant FW_SM_SIGNAL_BUFFER_MAX_SIZE = 128
 constant FW_CMD_ARG_BUFFER_MAX_SIZE = FW_COM_BUFFER_MAX_SIZE - SIZE_OF_FwOpcodeType - SIZE_OF_FwPacketDescriptorType
 
 @ Specifies the maximum size of a string in a command argument
-constant FW_CMD_STRING_MAX_SIZE = 40
+
+# Changed from 40 -> 80 for TLE Strings. Increases command size, so can shift to TLE file upload if it's a problem.
+constant FW_CMD_STRING_MAX_SIZE = 80
 
 @ Specifies the size of the buffer that contains the serialized log arguments
 constant FW_LOG_BUFFER_MAX_SIZE = FW_COM_BUFFER_MAX_SIZE - SIZE_OF_FwEventIdType - SIZE_OF_FwPacketDescriptorType
