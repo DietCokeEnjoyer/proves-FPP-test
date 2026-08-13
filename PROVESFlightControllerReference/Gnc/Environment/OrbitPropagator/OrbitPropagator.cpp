@@ -49,7 +49,21 @@ OrbitPropagator::~OrbitPropagator() {}
 bool OrbitPropagator::acquireTime(Astro::TimeScales& ts, Fw::Time& stamp) {
     stamp = this->getTime();
 
-    if (stamp.getTimeBase() == Fw::TimeBase::TB_NONE) {
+    // MUST be wall-clock time, not uptime.
+    //
+    // Drv::RtcManager falls back to TB_PROC_TIME (milliseconds since
+    // boot) whenever the RTC is absent, unreadable, or holds an
+    // out-of-range value. Accepting anything that is merely "not
+    // TB_NONE" would feed SGP4 a timestamp of a few hundred seconds
+    // past the POSIX epoch -- i.e. propagate the spacecraft to 1970,
+    // roughly 56 years and 3e5 revolutions from the TLE epoch. SGP4
+    // will not error on that; it will return a confident, absurd
+    // state vector, and GMST will be wrong by an arbitrary angle.
+    //
+    // TB_WORKSTATION_TIME is what RtcManager sets only after a
+    // successful rtc_get_time() that converted cleanly, so it is the
+    // correct and only acceptable gate.
+    if (stamp.getTimeBase() != Fw::TimeBase::TB_WORKSTATION_TIME) {
         this->log_WARNING_HI_TimeInvalid();
         return false;
     }
