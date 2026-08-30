@@ -17,7 +17,7 @@ register_fprime_module(
 )
 
 # Host-only integration test for the units / frame / time seam.
-if (NOT CMAKE_CROSSCOMPILING)
+if (BUILD_TESTING AND NOT CMAKE_CROSSCOMPILING)
     add_executable(magchain_test
         "${CMAKE_CURRENT_LIST_DIR}/test/MagChainTest.cpp"
         "${CMAKE_CURRENT_LIST_DIR}/../../AstroLib/AstroLib.cpp"

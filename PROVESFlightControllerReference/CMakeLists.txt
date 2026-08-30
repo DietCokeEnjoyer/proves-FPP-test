@@ -1,6 +1,10 @@
 # This CMake file is intended to register project-wide objects.
 # This allows for reuse between deployments, or other projects.
 
+# library includes
+include("${CMAKE_CURRENT_LIST_DIR}/cmake/eigen-embedded.cmake")
+include("${CMAKE_CURRENT_LIST_DIR}/cmake/perturb-embedded.cmake")
+
 add_fprime_subdirectory("${CMAKE_CURRENT_LIST_DIR}/project/config") # Keep me first
 add_fprime_subdirectory("${CMAKE_CURRENT_LIST_DIR}/Gnc") # Components uses GncTypes, so load before
 add_fprime_subdirectory("${CMAKE_CURRENT_LIST_DIR}/Components")

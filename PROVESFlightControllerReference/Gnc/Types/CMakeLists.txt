@@ -6,7 +6,7 @@
 # only place a type used across a component boundary may be defined.
 #
 # Fw/Time is an explicit dependency because Gnc.VectorSample and
-# Gnc.MagFieldResult carry an Fw.Time member.
+# Gnc.OrbitState carry an Fw.Time member.
 ####
 register_fprime_module(
     AUTOCODER_INPUTS

@@ -14,7 +14,7 @@ register_fprime_module(
 
 # Host-only truth-data test. 27 checks anchored to published constants
 # and physical events, not to the implementation.
-if (NOT CMAKE_CROSSCOMPILING)
+if (BUILD_TESTING AND NOT CMAKE_CROSSCOMPILING)
     add_executable(astrolib_test
         "${CMAKE_CURRENT_LIST_DIR}/test/AstroLibTest.cpp"
         "${CMAKE_CURRENT_LIST_DIR}/AstroLib.cpp"

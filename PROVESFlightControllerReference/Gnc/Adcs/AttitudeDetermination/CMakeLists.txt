@@ -25,7 +25,7 @@ register_fprime_module(
 # Pure-math unit test, host builds only. Needs no F Prime, no hardware.
 # NOTE: do NOT inherit EIGEN_NO_DEBUG here -- you want Eigen's asserts
 # active in the test even though flight code compiles them out.
-if (NOT CMAKE_CROSSCOMPILING)
+if (BUILD_TESTING AND NOT CMAKE_CROSSCOMPILING)
     add_executable(triad_solver_test
         "${CMAKE_CURRENT_LIST_DIR}/test/TriadSolverTest.cpp"
         "${CMAKE_CURRENT_LIST_DIR}/TriadSolver.cpp"
