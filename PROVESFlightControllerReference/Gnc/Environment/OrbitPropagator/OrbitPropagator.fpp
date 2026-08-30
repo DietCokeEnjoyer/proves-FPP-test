@@ -54,7 +54,7 @@ module Environment {
     @ and the solar ephemeris here and both evaluate at exactly this
     @ position and epoch -- no interpolation, no skew, no separate time
     @ acquisition.
-    output port orbitOut: Gnc.OrbitUpdate
+    output port orbitOut: Gnc.OrbitStateSend
 
     # ------------------------------------------------------------------
     # Standard framework ports
@@ -64,10 +64,10 @@ module Environment {
     command reg   port cmdRegOut
     command resp  port cmdResponseOut
 
-    event      port eventOut
-    text event port textEventOut
+    event      port logOut
+    text event port logTextOut
     telemetry  port tlmOut
-    time get   port timeGetOut
+    time get   port timeCaller
 
     param get port prmGetOut
     param set port prmSetOut
@@ -97,7 +97,7 @@ module Environment {
     @ THE ONLY PLACE THIS IS CONFIGURED. Splitting the chain must not
     @ mean two components with their own leap second setting to drift
     @ apart.
-    param LEAP_SECONDS: F64 default 37.0 id 0x00
+    param LEAP_SEC: F64 default 37.0 id 0x00
 
     @ UT1 - UTC, seconds, from IERS Bulletin A. Always < 0.9 s.
     @ Leaving this at 0 costs at most ~0.004 deg of Earth rotation.
@@ -114,11 +114,11 @@ module Environment {
     # Telemetry
     # ------------------------------------------------------------------
 
-    @ Spacecraft position, TEME, km
-    telemetry PosTeme: Gnc.Vector3 id 0x00
+    @ Spacecraft position, TEME, kilometres
+    telemetry PosTemeKm: Gnc.Vec3d id 0x00
 
-    @ Spacecraft velocity, TEME, km/s
-    telemetry VelTeme: Gnc.Vector3 id 0x01
+    @ Spacecraft velocity, TEME, kilometres per second
+    telemetry VelTemeKmS: Gnc.Vec3d id 0x01
 
     @ Sub-satellite geodetic latitude, deg
     telemetry LatDeg: F32 id 0x02
@@ -188,14 +188,14 @@ module Environment {
 
     @ No TLE loaded. Time and GMST still publish, so the solar
     @ ephemeris continues to produce a usable geocentric Sun vector.
-    event NoTleLoaded \
+    event TleMissing \
       severity warning low \
       id 0x04 \
       format "No TLE loaded, spacecraft state unavailable" \
       throttle 3
 
     @ Time source reported invalid. NOTHING downstream is usable.
-    event TimeInvalid \
+    event TimeMissing \
       severity warning high \
       id 0x05 \
       format "Time source invalid, navigation suspended" \

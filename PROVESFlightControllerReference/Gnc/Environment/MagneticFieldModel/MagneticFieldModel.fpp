@@ -59,7 +59,7 @@ module Environment {
     @ time port below is for framework event/telemetry timestamping
     @ only. Deriving an epoch from it would reintroduce exactly the
     @ skew this structure prevents.
-    guarded input port orbitIn: Gnc.OrbitUpdate
+    guarded input port orbitIn: Gnc.OrbitStateSend
 
     @ Magnetic field DIRECTION in TEME, for attitude determination.
     @ Normalized here: TRIAD is direction-only and normalizing at the
@@ -69,12 +69,8 @@ module Environment {
 
     @ Full field vector with magnitude, TEME, nT. For the magnetorquer
     @ controller, which needs |B| as well as its direction.
-    output port fieldOut: Gnc.MagFieldSend
+    output port fieldOut: Gnc.VectorSampleSend
 
-    @ Synchronous request/response for an off-nominal query. Not used
-    @ on the flight path; kept for ground checkout and for planning
-    @ tools that want B at a hypothetical position.
-    guarded input port getField: Gnc.MagFieldRequest
 
     @ Rate group tick. Telemetry heartbeat only -- it does NOT compute
     @ a new field. Connect it to a slow rate group (0.2-1 Hz); the
@@ -85,28 +81,24 @@ module Environment {
     # Telemetry
     # ------------------------------------------------------------------
 
-    @ Last computed field vector, TEME, nT
-    telemetry FieldTeme: Gnc.MagFieldVec
+    @ Last computed field vector, TEME, nanotesla
+    telemetry FieldTemeNt: Gnc.Vec3f id 0x00
 
-    @ Field magnitude, nT. In LEO this should sit between roughly
-    @ 20000 (equatorial) and 50000 (polar). A number outside that band
-    @ means the position, the epoch, or the units are wrong.
-    telemetry FieldMagnitude: F32 format "{.1f} nT"
-
-    @ Geodetic altitude the model was last evaluated at, km. The
-    @ cheapest single check that the km/m boundary is being crossed
-    @ correctly: this should read a few hundred, not a few hundred
-    @ thousand and not a fraction.
-    telemetry EvalAltKm: F32 format "{.2f} km"
+    @ Field magnitude, nanotesla. In LEO this should sit between
+    @ roughly 20000 (equatorial) and 50000 (polar). A number outside
+    @ that band means the position, the epoch, or the units are wrong.
+    telemetry FieldMagnitudeNt: F32 format "{.1f}" id 0x01
 
     @ Decimal year the model was last evaluated at
-    telemetry EvalDecYear: F32 format "{.4f}"
+    telemetry EvalDecYear: F32 format "{.4f}" id 0x02
 
     @ True if the last evaluation produced a usable field
-    telemetry FieldValid: bool
+    telemetry FieldValid: bool id 0x03
 
-    @ Count of evaluations rejected as out of range
-    telemetry RejectCount: U32
+    @ Count of evaluations rejected as out of range.
+    @ Named for this component: the ground flattens the namespace and
+    @ a bare RejectCount would collide with the attitude component's.
+    telemetry FieldRejectCount: U32 id 0x04
 
     # ------------------------------------------------------------------
     # Events
@@ -116,11 +108,12 @@ module Environment {
     @ altitude or epoch range. Throttled: an orbit that is out of range
     @ is out of range every single cycle, and at 1 Hz that is 86400
     @ identical events per day.
-    event OutOfRangeWarning(
+    event EvaluationOutOfRange(
                              altitudeKm: F32
                              decYear: F32
                            ) \
       severity warning low \
+      id 0x00 \
       format "WMM query outside validated range: alt={f} km, year={f}" \
       throttle 5
 
@@ -131,12 +124,14 @@ module Environment {
                          validity: Gnc.OrbitValidity
                        ) \
       severity warning low \
+      id 0x01 \
       format "No field: orbit validity {}" \
       throttle 5
 
     @ Field evaluation recovered after a dropout
     event FieldRestored \
       severity activity high \
+      id 0x02 \
       format "Magnetic field evaluation restored"
 
     ###############################################################################

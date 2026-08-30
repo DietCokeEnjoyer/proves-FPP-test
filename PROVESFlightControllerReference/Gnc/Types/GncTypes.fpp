@@ -4,27 +4,33 @@
 # SINGLE SOURCE OF TRUTH for every data type crossing a component
 # boundary in the GNC chain.
 #
-# Before this refactor there were three parallel type systems for the
-# same physical quantities:
+# ----------------------------------------------------------------------
+# NAMING RULES. Follow these when adding anything here.
 #
-#   Components::EciPosition / MagFieldEci   (F32, "ECI")
-#   Adcs::Vec3f / VectorSample              (F32, frame implicit)
-#   Gnc::Vector3 / EphemerisSolution        (F64, TEME; now split
-#                                            into OrbitState and
-#                                            SolarState)
+#   1. UNITS AND FRAMES ARE PART OF THE NAME:
+#        <quantity><Frame><Unit>
+#      e.g. posTemeKm, velTemeKmS, gmstRad, sunRangeKm, altKm.
+#      Omit the unit only when the value is genuinely dimensionless
+#      (sunUnitTeme). Omit the frame only when it cannot vary.
 #
-# Nothing connected, and the two that *could* have connected disagreed
-# about units (km vs m) and about which inertial frame "ECI" meant.
-# Both are silent failures: the code runs and produces a plausible,
-# wrong answer.
+#      A name must not change as a value crosses a boundary: what is
+#      posTemeKm in a struct is posTemeKm in every function that
+#      handles it.
 #
-# Two rules are now enforced by the type system rather than by comment:
+#   2. ANGLES ARE RADIANS in every port payload. Degrees appear only
+#      at the telemetry boundary, where the channel name says Deg.
 #
-#   1. Every vector on a port carries an explicit FrameId. Consumers
-#      check it. Mixing TEME and J2000 is a 0.36 deg error in 2026 and
-#      is the single most likely bug in this subsystem.
-#   2. Units are in the field name or the doc comment, always, and
-#      the km/m boundary exists in exactly one place (the WMM call).
+#   3. PAYLOAD NOUNS carry meaning and are not interchangeable:
+#        State    - a propagated or measured condition of the vehicle
+#        Sample   - one observation, from a sensor or a model
+#        Solution - an estimate produced by solving something
+#      Do not add a fourth.
+#
+#   4. PUSH PORT TYPES end in Send. The suffix describes the port, not
+#      the payload.
+#
+#   5. USABILITY is reported as one reason enum plus one boolean per
+#      independent capability the struct gates. See OrbitState.
 # ======================================================================
 
 module Gnc {
@@ -40,7 +46,7 @@ module Gnc {
   @ The Sun model (MOD) and the magnetic model (ECEF) both rotate INTO
   @ TEME at their own boundary. Nothing downstream converts anything.
   enum FrameId: U8 {
-    @ Unset. Treated as a fault by every consumer.
+    @ Unset. Treated as a fault by consumers.
     UNKNOWN = 0
     @ True Equator, Mean Equinox of date. The system inertial frame.
     TEME    = 1
@@ -51,8 +57,8 @@ module Gnc {
     @ Earth-fixed (ITRS/PEF, polar motion neglected). WMM input only.
     ECEF    = 4
     @ Mean equator and equinox of J2000.0. NOT used in the flight path;
-    @ present so that a star tracker or a ground comparison can be
-    @ tagged correctly and rejected loudly instead of silently mixed.
+    @ present so a star tracker or a ground comparison can be tagged
+    @ correctly and rejected loudly instead of silently mixed.
     J2000   = 5
     @ Spacecraft body frame. Sensor outputs.
     BODY    = 6
@@ -61,56 +67,60 @@ module Gnc {
   # --------------------------------------------------------------------
   # Vectors
   #
-  # Two precisions on purpose:
+  # Two precisions on purpose, and PRECISION IS THE ONLY DIFFERENCE --
+  # both are struct {x, y, z} so nothing else reads as different.
   #
-  #   Vector3 (F64) for the orbit/ephemeris domain. SGP4 is a double
-  #   algorithm and positions of 7000 km with metre-level meaning need
-  #   the mantissa.
+  #   Vec3d (F64) for the orbit domain. SGP4 is a double algorithm and
+  #   positions of 7000 km with metre-level meaning need the mantissa.
   #
-  #   Vec3f (F32) for the attitude domain, which is direction-only.
-  #   A unit vector in F32 is good to ~1e-7, i.e. ~2e-5 deg, which is
-  #   four orders of magnitude below the best sun sensor. The RP2350's
-  #   Cortex-M33 has a hardware SINGLE precision FPU, so this is the
-  #   difference between native instructions and soft-float emulation.
+  #   Vec3f (F32) for the attitude and field domains. A unit vector in
+  #   F32 is good to ~1e-7, i.e. ~2e-5 deg, four orders of magnitude
+  #   below the best sun sensor; a field in nT is good to ~0.005 nT
+  #   against a WMM only good to ~150 nT RMS. The RP2350's Cortex-M33
+  #   has a hardware SINGLE precision FPU, so this is the difference
+  #   between native instructions and soft-float emulation.
   #
-  # The F64 -> F32 narrowing happens exactly once, at the point a model
-  # publishes a direction for the attitude chain.
   # --------------------------------------------------------------------
 
-  @ Cartesian 3-vector, F64. Units depend on the containing field.
-  struct Vector3 {
+  @ Cartesian 3-vector, F64. Units and frame are named by the field
+  @ that holds it.
+  struct Vec3d {
     x: F64
     y: F64
     z: F64
-  }
+  } default { x = 0.0, y = 0.0, z = 0.0 }
 
-  @ Cartesian 3-vector, F32. Used for directions in the attitude chain.
-  array Vec3f = [3] F32 default [0.0, 0.0, 0.0] format "{.6f}"
+  @ Cartesian 3-vector, F32. Units and frame are named by the field
+  @ that holds it.
+  struct Vec3f {
+    x: F32 format "{.6f}"
+    y: F32 format "{.6f}"
+    z: F32 format "{.6f}"
+  } default { x = 0.0, y = 0.0, z = 0.0 }
 
   # --------------------------------------------------------------------
   # Vector observations
   # --------------------------------------------------------------------
 
-  @ One vector observation, from a sensor or from an on-board model.
+  @ One vector observation from a sensor or model, ex: magnetometer, WMM
   @
-  @ This is the common currency of the attitude chain: sun sensor,
-  @ magnetometer, solar ephemeris and the WMM all emit exactly this.
+  @ Not required to be a unit vector, so consumers that need unit vectors 
+  @ must normalize the sample.
   struct VectorSample {
-    @ The direction. Consumers normalize defensively, so producers are
-    @ not required to.
-    unitVec: Vec3f
-    @ Which frame unitVec is expressed in. Consumers MUST check this.
+    @ The vector. Units and frame come from the producer; see the port
+    @ it arrived on.
+    vec: Vec3f
+    @ Which frame vec is expressed in. Consumers MUST check this. TODO: WHY
     frame: FrameId
-    @ When the observation was taken (not when it was sent). Drives
-    @ staleness. A producer with no valid clock should send a Fw.Time
-    @ with time base TB_NONE; consumers then fall back to cycle
-    @ counting instead of wall clock.
+    @ When the observation was taken, not when it was sent. Drives
+    @ staleness. A producer with no valid clock sends time base
+    @ TB_NONE; consumers then fall back to cycle counting.
     stamp: Fw.Time
     @ Producer's own quality flag. False short-circuits any consumer.
     valid: bool
   }
 
-  @ Port used by every vector producer: sun sensor, magnetometer,
+  @ Push port for every vector producer: sun sensor, magnetometer,
   @ solar ephemeris, magnetic field model.
   port VectorSampleSend(ref sample: VectorSample)
 
@@ -118,7 +128,8 @@ module Gnc {
   # Orbit
   # --------------------------------------------------------------------
 
-  @ Confidence in the current orbit solution
+  @ Why the orbit state is / isn't usable. Diagnostic detail; branch
+  @ on timeUsable / positionUsable rather than comparing this.
   enum OrbitValidity: U8 {
     @ No TLE has been loaded since boot. Time and GMST are still valid.
     NO_TLE      = 0
@@ -132,56 +143,88 @@ module Gnc {
     VALID       = 4
   }
 
-  @ Spacecraft orbit state for one cycle. TEME throughout.
+  @ Spacecraft orbit state for one cycle, TEME Frame.
   @
-  @ This is the spacecraft-wide navigation product. Comms wants it for
-  @ pass prediction and antenna pointing, power and thermal want it for
-  @ eclipse forecasting, the magnetic model wants it to evaluate the
-  @ WMM, and the solar ephemeris wants it for parallax and shadow. It
-  @ is deliberately NOT bundled with the Sun vector: those are
-  @ different products with different audiences.
+  @ The spacecraft-wide navigation product: comms wants it for pass
+  @ prediction and antenna pointing, power and thermal for eclipse
+  @ forecasting, the magnetic model to evaluate the WMM, the solar
+  @ ephemeris for parallax and shadow.
+  @
+  @ TWO INDEPENDENT CAPABILITY FLAGS, not one. Time can be good while
+  @ position is not (NO_TLE, PROP_ERROR), and a consumer that checks a
+  @ single "valid" and then reads posTemeKm would get garbage with no
+  @ warning. Branch on the flag for the data you are about to read.
   struct OrbitState {
+    @ Diagnostic reason. For events and telemetry, not for branching.
     validity: OrbitValidity
+
+    @ True when stamp, jdUt1, jdTt and gmstRad are meaningful.
+    timeUsable: bool
+
+    @ True when posTemeKm, velTemeKmS, latRad, lonRad, altKm and
+    @ tleAgeDays are meaningful.
+    @
+    @ Computed HERE rather than by each consumer testing
+    @ (validity == VALID || validity == STALE). Two consumers
+    @ previously encoded that policy independently and could have
+    @ diverged if a sixth validity state were added.
+    positionUsable: bool
 
     @ Wall-clock instant this state describes.
     @
-    @ Carried so that downstream components can stamp their own
-    @ outputs with the OBSERVATION epoch without calling the time port
-    @ themselves. Only OrbitPropagator reads the clock; see the note on
-    @ gmstRad below for what happens when that rule is broken.
+    @ Carried so downstream components can stamp their own outputs with
+    @ the OBSERVATION epoch without reading the clock themselves. Only
+    @ OrbitPropagator reads the time port for computation.
     stamp: Fw.Time
 
-    @ UT1 Julian date of the solution
+    @ UT1 Julian date. Drives Earth rotation and the Sun's mean
+    @ longitude.
     jdUt1: F64
+
+    @ Terrestrial Time Julian date. Drives the dynamical arguments:
+    @ nutation, obliquity, the Sun's mean anomaly.
+    @
+    @ Carried because the solar ephemeris needs it and receives only
+    @ this struct. It was previously approximated downstream as
+    @ jdTt = jdUt1, a silent ~69 s error, even though the propagator
+    @ had already computed the correct value and discarded it.
+    jdTt: F64
 
     @ Greenwich Mean Sidereal Time at jdUt1, radians, [0, 2pi).
     @
-    @ Computed ONCE, here, in F64, and carried downstream. GMST is the
-    @ most error-sensitive quantity in the subsystem -- 15 deg per hour
-    @ of clock error -- and it used to be derived independently in two
+    @ Computed once for the whole subsystem and carried. GMST is the
+    @ most error-sensitive quantity here -- 15 deg per hour of clock
+    @ error -- and it used to be derived independently in two
     @ components, the second of which quantized it to 16.1 deg by
-    @ deriving it from an F32 decimal year. Downstream components must
-    @ treat this as read-only input and must never recompute it.
+    @ deriving it from an F32 decimal year. Never recompute this.
     gmstRad: F64
 
-    @ Spacecraft position, TEME, km. Meaningless unless validity is
-    @ VALID or STALE.
-    posTeme: Vector3
+    @ Spacecraft position, TEME, kilometres
+    posTemeKm: Vec3d
 
-    @ Spacecraft velocity, TEME, km/s. Same caveat.
-    velTeme: Vector3
+    @ Spacecraft velocity, TEME, kilometres per second
+    velTemeKmS: Vec3d
 
-    @ Unit vector from spacecraft to Earth centre, TEME
-    nadirTeme: Vector3
+    @ Sub-satellite geodetic latitude, radians (WGS-84)
+    @
+    @ Computed here so the WGS-84 conversion runs once per cycle. It
+    @ previously ran twice on the same position -- once for the ground
+    @ track, once for the magnetic model's altitude gate -- which on a
+    @ soft-float M33 is several wasted transcendentals.
+    latRad: F64
+
+    @ Sub-satellite geodetic longitude, radians (WGS-84)
+    lonRad: F64
+
+    @ Geodetic altitude above the WGS-84 ellipsoid, kilometres
+    altKm: F64
 
     @ Age of the loaded TLE, days. SGP4 degrades roughly 1-3 km/day.
     tleAgeDays: F32
   }
 
-  @ Broadcasts the orbit state. Consumed by the solar ephemeris, the
-  @ magnetic field model, and anything else that needs to know where
-  @ the spacecraft is.
-  port OrbitUpdate(ref state: OrbitState)
+  @ Broadcasts the orbit state.
+  port OrbitStateSend(ref state: OrbitState)
 
   # --------------------------------------------------------------------
   # Solar geometry
@@ -194,88 +237,55 @@ module Gnc {
     UMBRA    = 2
   }
 
+  @ Why the solar state is / isn't usable. Diagnostic detail; branch
+  @ on directionUsable / geometryUsable.
+  enum SolarValidity: U8 {
+    @ No usable time, so nothing could be computed
+    NO_TIME    = 0
+    @ Direction computed, but no orbit was available: the vector is
+    @ geocentric and shadow / beta are unavailable
+    GEOCENTRIC = 1
+    @ Fully valid
+    VALID      = 2
+  }
+
   @ Solar geometry for one cycle. TEME throughout.
+  @
+  @ Same two-capability shape as OrbitState, for the same reason: the
+  @ Sun direction needs only a clock, while shadow and beta need an
+  @ orbit. These previously shared a single "valid" plus an unexplained
+  @ "hasOrbit", so a consumer could read betaDeg on a valid struct and
+  @ get an uninitialized number.
   struct SolarState {
-    @ True when sunUnitTeme is usable as a direction. Note this can be
-    @ true while hasOrbit is false: the Sun direction only needs a
-    @ clock, not an ephemeris.
-    valid: bool
+    @ Diagnostic reason. For events and telemetry, not for branching.
+    validity: SolarValidity
 
-    @ True when the spacecraft position was known, so that parallax was
-    @ applied and illumination / betaDeg are meaningful. When false,
-    @ sunUnitTeme is GEOCENTRIC -- which in LEO differs from the
-    @ topocentric direction by at most 0.0027 deg, well under the solar
-    @ model's own 0.01 deg, so it remains perfectly usable for attitude
-    @ determination and for a safe-mode sun search.
-    hasOrbit: bool
+    @ True when sunUnitTeme and sunRangeKm are meaningful.
+    directionUsable: bool
 
-    @ Unit vector toward the Sun, TEME. From the spacecraft if
-    @ hasOrbit, otherwise from the Earth's centre.
-    sunUnitTeme: Vector3
+    @ True when illumination and betaRad are meaningful. Implies
+    @ directionUsable.
+    geometryUsable: bool
 
-    @ Range to the Sun, km
+    @ Unit vector toward the Sun, TEME. From the spacecraft when
+    @ geometryUsable, otherwise from the Earth's centre -- a difference
+    @ of at most 0.0027 deg in LEO, well under the solar model's own
+    @ 0.01 deg, so it stays usable for attitude determination.
+    sunUnitTeme: Vec3d
+
+    @ Range to the Sun, kilometres
     sunRangeKm: F64
 
-    @ Shadow state. Only meaningful when hasOrbit.
+    @ Shadow state
     illumination: IlluminationState
 
-    @ Sun elevation above the orbit plane, degrees. Only meaningful
-    @ when hasOrbit.
-    betaDeg: F32
+    @ Sun elevation above the orbit plane, RADIANS. Converted to
+    @ degrees only at the telemetry boundary.
+    betaRad: F64
   }
 
   @ Broadcasts solar geometry. Consumed by power (eclipse and beta
   @ drive array output and thermal load) and by ADCS.
-  port SolarUpdate(ref state: SolarState)
-
-  # --------------------------------------------------------------------
-  # Magnetic field
-  # --------------------------------------------------------------------
-
-  @ Magnetic field vector, nanotesla. Frame is carried alongside.
-  @
-  @ F32: the field is 20000-65000 nT in LEO and the WMM itself is only
-  @ good to ~150 nT RMS, so F32's ~7 digits are five orders of
-  @ magnitude finer than the model error.
-  struct MagFieldVec {
-    x: F32
-    y: F32
-    z: F32
-  }
-
-  @ Field plus an explicit validity flag.
-  @
-  @ The old design returned a bare vector, so "model declined to
-  @ evaluate" and "field is genuinely near zero" were the same three
-  @ zeros on the wire. They are not the same thing.
-  struct MagFieldResult {
-    field: MagFieldVec
-    @ Frame the field vector is expressed in (TEME on the flight path)
-    frame: FrameId
-    @ Epoch the model was evaluated at
-    stamp: Fw.Time
-    valid: bool
-  }
-
-  @ Push the full field vector, magnitude included. The magnetorquer
-  @ controller needs |B|, not just its direction, so it takes this
-  @ rather than the VectorSample that TRIAD takes.
-  port MagFieldSend(ref result: MagFieldResult)
-
-  @ Synchronous request/response: field at an arbitrary position and
-  @ time. Kept as a pull interface for ground checkout and for a
-  @ magnetorquer allocator that wants B somewhere other than "now".
-  @ The normal flight path does NOT use this -- see magRefOut.
-  @
-  @ posTemeKm is F64 and in KILOMETRES, matching SGP4. The conversion
-  @ to the metres that the WMM wants happens inside the component, in
-  @ exactly one place. Passing metres here used to be assumed and never
-  @ stated, and nothing in the system produced metres, so the model
-  @ would have been evaluated 1000x too close to the Earth's centre.
-  port MagFieldRequest(
-                        ref posTemeKm: Vector3  @< position, TEME, km
-                        jdUt1: F64              @< UT1 Julian date
-                        gmstRad: F64            @< GMST at jdUt1, rad
-                      ) -> MagFieldResult
+  port SolarStateSend(ref state: SolarState)
 
 }

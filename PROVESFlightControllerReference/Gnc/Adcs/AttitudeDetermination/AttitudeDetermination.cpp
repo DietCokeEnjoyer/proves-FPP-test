@@ -1,12 +1,12 @@
-// ======================================================================
-// \title  AttitudeDetermination.cpp
-// \brief  cpp file for AttitudeDetermination component implementation
-//
-// This file is the FRAMEWORK layer. It owns latching, staleness, frame
-// checking, parameters, telemetry, events, and fault reporting. It
-// contains no TRIAD math -- that all lives in TriadSolver.cpp, which
-// knows nothing about F Prime and can be unit tested on a workstation.
-// ======================================================================
+/**
+ * \file AttitudeDetermination.cpp
+ * \brief cpp file for AttitudeDetermination component implementation
+ *
+ * \details This file is the FRAMEWORK layer. It owns latching, staleness, frame
+ * checking, parameters, telemetry, events, and fault reporting. It
+ * contains no TRIAD math -- that all lives in TriadSolver.cpp, which
+ * knows nothing about F Prime and can be unit tested on a workstation.
+ */
 
 #include "Gnc/Adcs/AttitudeDetermination/AttitudeDetermination.hpp"
 
@@ -17,20 +17,22 @@ namespace Adcs {
 
 namespace {
 
-constexpr float RAD_TO_DEG = 57.29577951308232f;
-constexpr float DEG_TO_RAD = 0.017453292519943295f;
-
-//! Defaults used when a parameter has never been set. These must match
-//! the FPP defaults; they exist because paramGet returns garbage-safe
-//! but meaningless values when ParamValid is not VALID, and silently
-//! using a zero age limit would suppress every solution.
+/**
+ * Defaults used when a parameter has never been set. These must match
+ * the FPP defaults; they exist because paramGet returns garbage-safe
+ * but meaningless values when ParamValid is not VALID, and silently
+ * using a zero age limit would suppress every solution.
+ */
 constexpr U32 DEFAULT_BODY_AGE_MS = 500U;
 constexpr U32 DEFAULT_REF_AGE_MS = 3000U;
 constexpr U32 DEFAULT_AGE_CYCLES = 20U;
 
-//! FPP array -> Eigen
+/**
+ * FPP struct -> Eigen. Kept here, not in GncConvert.hpp: Eigen is an
+ * attitude-domain dependency and must not leak into the shared types.
+ */
 Eigen::Vector3f toEigen(const Gnc::Vec3f& v) {
-    return Eigen::Vector3f(v[0], v[1], v[2]);
+    return Eigen::Vector3f(v.get_x(), v.get_y(), v.get_z());
 }
 
 //! Eigen quaternion -> FPP array, preserving the [x,y,z,w] order
@@ -43,15 +45,17 @@ Adcs::Quatf toFpp(const Eigen::Quaternionf& q) {
     return out;
 }
 
-//! Age in milliseconds, or false if the two times cannot be meaningfully
-//! differenced.
-//!
-//! Returning false rather than a large number is the important part: a
-//! spacecraft that has not acquired time yet, or that just stepped its
-//! clock after a GPS fix, must fall back to cycle counting instead of
-//! concluding that every input is infinitely stale. That is precisely
-//! the regime -- first minutes after boot -- where a coarse attitude
-//! solution is most needed.
+/**
+ * Age in milliseconds, or false if the two times cannot be meaningfully
+ * differenced.
+ *
+ * Returning false rather than a large number is the important part: a
+ * spacecraft that has not acquired time yet, or that just stepped its
+ * clock after a GPS fix, must fall back to cycle counting instead of
+ * concluding that every input is infinitely stale. That is precisely
+ * the regime -- first minutes after boot -- where a coarse attitude
+ * solution is most needed.
+ */
 bool ageMs(const Fw::Time& now, const Fw::Time& then, U32& out) {
     if (now.getTimeBase() != then.getTimeBase()) {
         return false;
@@ -74,23 +78,27 @@ bool ageMs(const Fw::Time& now, const Fw::Time& then, U32& out) {
 
 }  // namespace
 
-// ----------------------------------------------------------------------
-// Construction / destruction
-// ----------------------------------------------------------------------
+/*
+ * ============================================================================
+ * Construction / destruction
+ * ============================================================================
+ */
 
 AttitudeDetermination ::AttitudeDetermination(const char* const compName)
     : AttitudeDeterminationComponentBase(compName) {}
 
 AttitudeDetermination ::~AttitudeDetermination() {}
 
-// ----------------------------------------------------------------------
-// Input port handlers
-//
-// These are GUARDED, so the framework holds the component mutex for the
-// duration. Each handler does the minimum possible work -- copy and
-// stamp -- and returns, so a producer thread is never blocked behind a
-// solve. All four are identical apart from which slot they write.
-// ----------------------------------------------------------------------
+/*
+ * ============================================================================
+ * Input port handlers
+ *
+ * These are GUARDED, so the framework holds the component mutex for the
+ * duration. Each handler does the minimum possible work -- copy and
+ * stamp -- and returns, so a producer thread is never blocked behind a
+ * solve. All four are identical apart from which slot they write.
+ * ============================================================================
+ */
 
 void AttitudeDetermination ::sunBodyIn_handler(FwIndexType portNum, Gnc::VectorSample& sample) {
     (void)portNum;
@@ -113,7 +121,7 @@ void AttitudeDetermination ::magRefIn_handler(FwIndexType portNum, Gnc::VectorSa
 }
 
 void AttitudeDetermination ::latch(LatchedSample& slot, const Gnc::VectorSample& sample) {
-    slot.vec = toEigen(sample.get_unitVec());
+    slot.vec = toEigen(sample.get_vec());
     slot.stamp = sample.get_stamp();
     slot.frame = sample.get_frame();
     slot.valid = sample.get_valid();
@@ -121,18 +129,22 @@ void AttitudeDetermination ::latch(LatchedSample& slot, const Gnc::VectorSample&
     slot.everSet = true;
 }
 
-// ----------------------------------------------------------------------
-// Rate group tick
-//
-// One tick == age everything by one cycle, then attempt one solve.
-// ----------------------------------------------------------------------
+/*
+ * ============================================================================
+ * Rate group tick
+ *
+ * One tick == age everything by one cycle, then attempt one solve.
+ * ============================================================================
+ */
 
-void AttitudeDetermination ::schedIn_handler(FwIndexType portNum, U32 context) {
+void AttitudeDetermination ::run_handler(FwIndexType portNum, U32 context) {
     (void)portNum;
     (void)context;
 
-    // Saturating increment so a long dropout cannot wrap the counter
-    // back around into "fresh".
+    /*
+     * Saturating increment so a long dropout cannot wrap the counter
+     * back around into "fresh".
+     */
     LatchedSample* const slots[] = {&this->m_sunBody, &this->m_magBody,
                                     &this->m_sunRef, &this->m_magRef};
     for (LatchedSample* slot : slots) {
@@ -144,18 +156,20 @@ void AttitudeDetermination ::schedIn_handler(FwIndexType portNum, U32 context) {
     this->solveAndPublish();
 }
 
-// ----------------------------------------------------------------------
-// Frame checking
-//
-// This is the check that could not exist before the refactor, because
-// the samples carried no frame tag. It matters because TRIAD cannot
-// detect a frame error numerically: if both reference vectors are
-// expressed in J2000 while the component believes they are TEME, they
-// are both rotated by the same 0.36 deg of precession, the angle
-// between them is unchanged, and the geometry consistency check in
-// STEP 3 of the solver passes cleanly. The attitude is then wrong by
-// 0.36 deg with every health channel reading nominal.
-// ----------------------------------------------------------------------
+/*
+ * ============================================================================
+ * Frame checking
+ *
+ * This is the check that could not exist before the refactor, because
+ * the samples carried no frame tag. It matters because TRIAD cannot
+ * detect a frame error numerically: if both reference vectors are
+ * expressed in J2000 while the component believes they are TEME, they
+ * are both rotated by the same 0.36 deg of precession, the angle
+ * between them is unchanged, and the geometry consistency check in
+ * STEP 3 of the solver passes cleanly. The attitude is then wrong by
+ * 0.36 deg with every health channel reading nominal.
+ * ============================================================================
+ */
 
 bool AttitudeDetermination ::checkFrame(const LatchedSample& slot,
                                         const char* name,
@@ -171,9 +185,11 @@ bool AttitudeDetermination ::checkFrame(const LatchedSample& slot,
     return false;
 }
 
-// ----------------------------------------------------------------------
-// Freshness
-// ----------------------------------------------------------------------
+/*
+ * ============================================================================
+ * Freshness
+ * ============================================================================
+ */
 
 AttitudeDetermination::Freshness AttitudeDetermination ::checkFresh(const LatchedSample& slot,
                                                                     const char* name,
@@ -205,9 +221,11 @@ AttitudeDetermination::Freshness AttitudeDetermination ::checkFresh(const Latche
     return f;
 }
 
-// ----------------------------------------------------------------------
-// The main cycle
-// ----------------------------------------------------------------------
+/*
+ * ============================================================================
+ * The main cycle
+ * ============================================================================
+ */
 
 void AttitudeDetermination ::solveAndPublish() {
     const Fw::Time now = this->getTime();
@@ -230,29 +248,33 @@ void AttitudeDetermination ::solveAndPublish() {
     const Gnc::FrameId refFrame =
         (pv == Fw::ParamValid::VALID) ? rawFrame : Gnc::FrameId::TEME;
 
-    // ------------------------------------------------------------------
-    // Frame gate, before anything else. A frame fault is a wiring or
-    // configuration error: it will not clear on its own, and continuing
-    // to publish a confident attitude through it is worse than
-    // publishing nothing.
-    // ------------------------------------------------------------------
-    const bool framesOk =
+    /*
+     * ----------------------------------------------------------------------------
+     * Frame gate, before anything else. A frame fault is a wiring or
+     * configuration error: it will not clear on its own, and continuing
+     * to publish a confident attitude through it is worse than
+     * publishing nothing.
+     * ----------------------------------------------------------------------------
+     */
+    const bool framesMatch =
         this->checkFrame(this->m_sunBody, "sunBody", Gnc::FrameId::BODY) &&
         this->checkFrame(this->m_magBody, "magBody", Gnc::FrameId::BODY) &&
         this->checkFrame(this->m_sunRef, "sunRef", refFrame) &&
         this->checkFrame(this->m_magRef, "magRef", refFrame);
 
-    if (!framesOk) {
+    if (!framesMatch) {
         this->publish(toFpp(this->m_lastQuat), Adcs::TriadStatus::FRAME_MISMATCH,
                       now, refFrame, false);
         return;
     }
 
-    // ------------------------------------------------------------------
-    // Availability gate. Distinguish the failure reasons so operators
-    // can tell an eclipse (expected, recurring, benign) from a broken
-    // magnetometer (not benign) straight from the Status channel.
-    // ------------------------------------------------------------------
+    /*
+     * ----------------------------------------------------------------------------
+     * Availability gate. Distinguish the failure reasons so operators
+     * can tell an eclipse (expected, recurring, benign) from a broken
+     * magnetometer (not benign) straight from the Status channel.
+     * ----------------------------------------------------------------------------
+     */
     const Freshness fSunBody = this->checkFresh(this->m_sunBody, "sunBody", now, maxBodyMs, maxCycles);
     const Freshness fMagBody = this->checkFresh(this->m_magBody, "magBody", now, maxBodyMs, maxCycles);
     const Freshness fSunRef = this->checkFresh(this->m_sunRef, "sunRef", now, maxRefMs, maxCycles);
@@ -274,8 +296,10 @@ void AttitudeDetermination ::solveAndPublish() {
     this->tlmWrite_OldestInputAgeMs(oldestMs);
     this->tlmWrite_UsingCycleFallback(anyUnknown);
 
-    // The solution is only as fresh as its stalest input, so stamp it
-    // with the oldest one rather than with "now".
+    /*
+     * The solution is only as fresh as its stalest input, so stamp it
+     * with the oldest one rather than with "now".
+     */
     Fw::Time solutionStamp = now;
     {
         const LatchedSample* const slots[] = {&this->m_sunBody, &this->m_magBody,
@@ -305,20 +329,30 @@ void AttitudeDetermination ::solveAndPublish() {
         return;
     }
 
-    // ------------------------------------------------------------------
-    // Assign the primary / secondary roles.
-    //
-    // This is the one genuinely consequential configuration choice in
-    // TRIAD. The primary observation is reproduced EXACTLY by the
-    // solution; the secondary only fixes rotation about it. So the
-    // primary must be the more accurate sensor. Normally that is the
-    // sun sensor, but if it degrades, ground can flip this parameter
-    // and TRIAD keeps working with the magnetometer as the trusted leg.
-    // ------------------------------------------------------------------
+    /*
+     * ----------------------------------------------------------------------------
+     * Assign the primary / secondary roles.
+     *
+     * This is the one genuinely consequential configuration choice in
+     * TRIAD. The primary observation is reproduced EXACTLY by the
+     * solution; the secondary only fixes rotation about it. So the
+     * primary must be the more accurate sensor. Normally that is the
+     * sun sensor, but if it degrades, ground can flip this parameter
+     * and TRIAD keeps working with the magnetometer as the trusted leg.
+     * ----------------------------------------------------------------------------
+     */
     pv = Fw::ParamValid::INVALID;
     const Adcs::PrimaryVector primary = this->paramGet_PRIMARY_VECTOR(pv);
+
+    /*
+     * The not-VALID fallback MUST match the FPP default. This
+     * deployment uses Components::NullPrmDb, so paramGet never returns
+     * VALID and this branch is the one that actually flies -- a
+     * mismatch here would silently invert the most consequential
+     * configuration choice in TRIAD while the FPP file said otherwise.
+     */
     const bool sunIsPrimary =
-        (pv != Fw::ParamValid::VALID) || (primary == Adcs::PrimaryVector::SUN);
+        (pv == Fw::ParamValid::VALID) && (primary == Adcs::PrimaryVector::SUN);
 
     TriadObservation obs;
     if (sunIsPrimary) {
@@ -333,37 +367,43 @@ void AttitudeDetermination ::solveAndPublish() {
         obs.secondaryRef = this->m_sunRef.vec;
     }
 
-    // ------------------------------------------------------------------
-    // Run TRIAD
-    // ------------------------------------------------------------------
+    /*
+     * ----------------------------------------------------------------------------
+     * Run TRIAD
+     * ----------------------------------------------------------------------------
+     */
     TriadSolution sol;
     const TriadResult result = triadSolve(obs, this->currentConfig(), sol);
 
-    this->tlmWrite_SeparationDeg(sol.separationRad * RAD_TO_DEG);
-    this->tlmWrite_GeometryErrDeg(sol.geometryErrorRad * RAD_TO_DEG);
+    this->tlmWrite_SeparationDeg(sol.separationRad * RAD2DEG);
+    this->tlmWrite_GeometryErrDeg(sol.geometryErrorRad * RAD2DEG);
 
     if (result != TriadResult::OK) {
-        // Specific diagnostics for the two failures an operator can
-        // actually act on.
+        /*
+         * Specific diagnostics for the two failures an operator can
+         * actually act on.
+         */
         if (result == TriadResult::BODY_COLINEAR || result == TriadResult::REFERENCE_COLINEAR) {
-            this->log_WARNING_LO_VectorsColinear(sol.separationRad * RAD_TO_DEG);
+            this->log_WARNING_LO_VectorsColinear(sol.separationRad * RAD2DEG);
         } else if (result == TriadResult::GEOMETRY_MISMATCH) {
-            this->log_WARNING_HI_GeometryMismatch(sol.geometryErrorRad * RAD_TO_DEG);
+            this->log_WARNING_HI_GeometryMismatch(sol.geometryErrorRad * RAD2DEG);
         }
         this->publish(toFpp(this->m_lastQuat), toFppStatus(result),
                       solutionStamp, refFrame, false);
         return;
     }
 
-    // ------------------------------------------------------------------
-    // Sign continuity.
-    //
-    // q and -q represent the same rotation. The solver canonicalizes to
-    // w >= 0, which makes the output jump discontinuously whenever w
-    // crosses zero. Anything that differentiates the quaternion or
-    // feeds it to a filter will read that as an enormous slew. Pick the
-    // sign nearer the previous solution instead.
-    // ------------------------------------------------------------------
+    /*
+     * ----------------------------------------------------------------------------
+     * Sign continuity.
+     *
+     * q and -q represent the same rotation. The solver canonicalizes to
+     * w >= 0, which makes the output jump discontinuously whenever w
+     * crosses zero. Anything that differentiates the quaternion or
+     * feeds it to a filter will read that as an enormous slew. Pick the
+     * sign nearer the previous solution instead.
+     * ----------------------------------------------------------------------------
+     */
     Eigen::Quaternionf q = sol.quatBodyFromRef;
     if (q.coeffs().dot(this->m_lastQuat.coeffs()) < 0.0f) {
         q.coeffs() *= -1.0f;
@@ -373,9 +413,11 @@ void AttitudeDetermination ::solveAndPublish() {
     this->publish(toFpp(q), Adcs::TriadStatus::OK, solutionStamp, refFrame, true);
 }
 
-// ----------------------------------------------------------------------
-// Publication and bookkeeping
-// ----------------------------------------------------------------------
+/*
+ * ============================================================================
+ * Publication and bookkeeping
+ * ============================================================================
+ */
 
 void AttitudeDetermination ::publish(const Adcs::Quatf& q,
                                      Adcs::TriadStatus status,
@@ -402,11 +444,13 @@ void AttitudeDetermination ::publish(const Adcs::Quatf& q,
     this->tlmWrite_AttQuat(q);
     this->tlmWrite_Status(status);
     this->tlmWrite_SolutionCount(this->m_solutionCount);
-    this->tlmWrite_RejectCount(this->m_rejectCount);
+    this->tlmWrite_SolveRejectCount(this->m_rejectCount);
 
-    // Edge-triggered events only. A rate group running at 10 Hz through
-    // a 20 minute eclipse would otherwise generate 12000 identical
-    // events and flood the downlink.
+    /*
+     * Edge-triggered events only. A rate group running at 10 Hz through
+     * a 20 minute eclipse would otherwise generate 12000 identical
+     * events and flood the downlink.
+     */
     if (valid && !this->m_lastSolveValid) {
         this->log_ACTIVITY_HI_SolutionRestored();
     } else if (!valid && this->m_lastSolveValid) {
@@ -421,15 +465,17 @@ TriadConfig AttitudeDetermination ::currentConfig() {
 
     const F32 minSepDeg = this->paramGet_MIN_SEPARATION_DEG(pv);
     if (pv == Fw::ParamValid::VALID) {
-        // The solver thresholds on sin(separation) because that is the
-        // quantity that actually appears in the denominator.
-        cfg.minSinSeparation = std::sin(minSepDeg * DEG_TO_RAD);
+        /*
+         * The solver thresholds on sin(separation) because that is the
+         * quantity that actually appears in the denominator.
+         */
+        cfg.minSinSeparation = std::sin(minSepDeg * DEG2RAD);
     }
 
     pv = Fw::ParamValid::INVALID;
     const F32 maxGeomDeg = this->paramGet_MAX_GEOMETRY_ERR_DEG(pv);
     if (pv == Fw::ParamValid::VALID) {
-        cfg.maxGeometryErrorRad = maxGeomDeg * DEG_TO_RAD;
+        cfg.maxGeometryErrorRad = maxGeomDeg * DEG2RAD;
     }
 
     return cfg;
@@ -454,9 +500,11 @@ Adcs::TriadStatus AttitudeDetermination ::toFppStatus(Adcs::TriadResult result) 
     }
 }
 
-// ----------------------------------------------------------------------
-// Command handlers
-// ----------------------------------------------------------------------
+/*
+ * ============================================================================
+ * Command handlers
+ * ============================================================================
+ */
 
 void AttitudeDetermination ::SOLVE_NOW_cmdHandler(FwOpcodeType opCode, U32 cmdSeq) {
     this->solveAndPublish();
@@ -464,16 +512,18 @@ void AttitudeDetermination ::SOLVE_NOW_cmdHandler(FwOpcodeType opCode, U32 cmdSe
 }
 
 void AttitudeDetermination ::SELF_TEST_cmdHandler(FwOpcodeType opCode, U32 cmdSeq) {
-    // ------------------------------------------------------------------
-    // End-to-end check with a known answer.
-    //
-    // Rotate two arbitrary reference vectors by a truth attitude to
-    // synthesize "measurements", run TRIAD, and compare. In exact
-    // arithmetic the recovered error is zero, so anything above float
-    // noise means the FPU is not enabled, the compiler flags are wrong,
-    // or the library was miscompiled. Worth running once after every
-    // load, and after any radiation event.
-    // ------------------------------------------------------------------
+    /*
+     * ----------------------------------------------------------------------------
+     * End-to-end check with a known answer.
+     *
+     * Rotate two arbitrary reference vectors by a truth attitude to
+     * synthesize "measurements", run TRIAD, and compare. In exact
+     * arithmetic the recovered error is zero, so anything above float
+     * noise means the FPU is not enabled, the compiler flags are wrong,
+     * or the library was miscompiled. Worth running once after every
+     * load, and after any radiation event.
+     * ----------------------------------------------------------------------------
+     */
     const Eigen::Quaternionf truth =
         Eigen::Quaternionf(Eigen::AngleAxisf(0.7f, Eigen::Vector3f(0.3f, -0.5f, 0.8f).normalized()));
 
@@ -495,9 +545,11 @@ void AttitudeDetermination ::SELF_TEST_cmdHandler(FwOpcodeType opCode, U32 cmdSe
         return;
     }
 
-    // angularDistance is the actual rotation angle between the two
-    // attitudes -- the correct error metric, and sign-agnostic.
-    const float errDeg = sol.quatBodyFromRef.angularDistance(truth) * RAD_TO_DEG;
+    /*
+     * angularDistance is the actual rotation angle between the two
+     * attitudes -- the correct error metric, and sign-agnostic.
+     */
+    const float errDeg = sol.quatBodyFromRef.angularDistance(truth) * RAD2DEG;
     const bool passed = (errDeg < 0.01f);
 
     this->log_ACTIVITY_HI_SelfTestResult(errDeg, passed);

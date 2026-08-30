@@ -65,7 +65,7 @@ module Adcs {
     guarded input port magRefIn: Gnc.VectorSampleSend
 
     @ Rate group tick. One tick == one TRIAD evaluation.
-    guarded input port schedIn: Svc.Sched
+    guarded input port run: Svc.Sched
 
     @ Publishes the attitude estimate to the controller / estimator
     output port attitudeOut: AttitudeSolutionSend
@@ -77,10 +77,10 @@ module Adcs {
     command reg port cmdRegOut
     command resp port cmdResponseOut
 
-    event port eventOut
-    text event port textEventOut
+    event port logOut
+    text event port logTextOut
     telemetry port tlmOut
-    time get port timeGetOut
+    time get port timeCaller
 
     param get port prmGetOut
     param set port prmSetOut
@@ -93,30 +93,43 @@ module Adcs {
     # performance is known -- without a software load.
     # ------------------------------------------------------------------
 
-    @ Which observation TRIAD satisfies exactly. Sun by default: sun
-    @ sensors are typically 0.1-1 deg while magnetometer + WMM is
-    @ 2-5 deg once residual spacecraft dipole is accounted for.
-    param PRIMARY_VECTOR: PrimaryVector default PrimaryVector.SUN
+    @ Which observation TRIAD satisfies exactly.
+    @
+    @ MAG by default, which is the opposite of the usual advice. The
+    @ usual advice assumes a dedicated sun sensor at 0.1-1 deg against
+    @ a magnetometer + model at 2-5 deg. This spacecraft's sun sensor
+    @ is an array of VEML6031 ambient-light photodiodes, one per face;
+    @ a weighted-face-normal sun vector from those is realistically
+    @ 5-15 deg, and degrades further near face boundaries and under
+    @ Earth albedo. The LIS2MDL plus the WMM at the propagated orbit
+    @ position is the better of the two.
+    @
+    @ TRIAD reproduces the PRIMARY observation exactly and uses the
+    @ secondary only to fix rotation about it, so the primary must be
+    @ the more accurate sensor. Flip this to SUN if you fly a real sun
+    @ sensor, or if magnetometer calibration turns out worse than the
+    @ photodiode array in flight.
+    param PRIMARY_VECTOR: PrimaryVector default PrimaryVector.MAG id 0x00
 
     @ The inertial frame the reference vectors must be tagged with.
     @ TEME, because that is what SGP4 produces and the whole chain was
     @ built around not converting it. Any producer that disagrees is
     @ rejected loudly rather than averaged in silently.
-    param REFERENCE_FRAME: Gnc.FrameId default Gnc.FrameId.TEME
+    param REFERENCE_FRAME: Gnc.FrameId default Gnc.FrameId.TEME id 0x01
 
     @ Reject a solve if the two observations are separated by less than
     @ this angle (or more than 180 minus this). Attitude error about the
     @ primary axis scales as 1/sin(separation).
-    param MIN_SEPARATION_DEG: F32 default 5.0
+    param MIN_SEPARATION_DEG: F32 default 5.0 id 0x02
 
     @ Reject if the body-pair separation and reference-pair separation
     @ disagree by more than this. A rotation preserves angles, so a
     @ nonzero residual is always a fault somewhere.
-    param MAX_GEOMETRY_ERR_DEG: F32 default 5.0
+    param MAX_GEOMETRY_ERR_DEG: F32 default 5.0 id 0x03
 
     @ Discard a BODY (sensor) sample older than this. Sensors are
     @ expected to run at or above the ADCS rate, so this is tight.
-    param MAX_BODY_AGE_MS: U32 default 500
+    param MAX_BODY_AGE_MS: U32 default 500 id 0x04
 
     @ Discard a REFERENCE (model) sample older than this. The orbit
     @ propagator runs at 1 Hz and the underlying quantities move
@@ -124,7 +137,7 @@ module Adcs {
     @ field by well under a degree -- so several seconds of tolerance
     @ costs almost nothing and prevents a rate mismatch from
     @ suppressing the solution entirely.
-    param MAX_REF_AGE_MS: U32 default 3000
+    param MAX_REF_AGE_MS: U32 default 3000 id 0x05
 
     @ Fallback age limit, in rate group cycles, used ONLY when the
     @ sample timestamp cannot be differenced against the current time
@@ -132,52 +145,56 @@ module Adcs {
     @ Counting cycles avoids any dependence on time base validity at
     @ power-on, which is exactly the regime where a coarse sun search
     @ needs an attitude most.
-    param MAX_SAMPLE_AGE_CYCLES: U32 default 20
+    param MAX_SAMPLE_AGE_CYCLES: U32 default 20 id 0x06
 
     # ------------------------------------------------------------------
     # Commands
     # ------------------------------------------------------------------
 
     @ Force one TRIAD evaluation immediately using the latched samples
-    sync command SOLVE_NOW
+    sync command SOLVE_NOW \
+      opcode 0x00
 
     @ Run TRIAD against a built-in synthetic case with a known answer.
     @ Verifies the math, the FPU, and the compiler flags on the target.
-    sync command SELF_TEST
+    sync command SELF_TEST \
+      opcode 0x01
 
     # ------------------------------------------------------------------
     # Telemetry
     # ------------------------------------------------------------------
 
     @ Attitude estimate, [x,y,z,w], reference frame -> body frame
-    telemetry AttQuat: Quatf
+    telemetry AttQuat: Quatf id 0x00
 
     @ Result of the most recent evaluation
-    telemetry Status: TriadStatus
+    telemetry Status: TriadStatus id 0x01
 
     @ Angle between the two observations. The key health channel: watch
     @ this to predict when geometry will force TRIAD to drop out.
-    telemetry SeparationDeg: F32 format "{.2f} deg"
+    telemetry SeparationDeg: F32 format "{.2f}" id 0x02
 
     @ Body-vs-reference angle disagreement. Should hover near sensor
     @ noise; a persistent bias means a calibration or model error.
-    telemetry GeometryErrDeg: F32 format "{.3f} deg"
+    telemetry GeometryErrDeg: F32 format "{.3f}" id 0x03
 
     @ Count of successful solves
-    telemetry SolutionCount: U32
+    telemetry SolutionCount: U32 id 0x04
 
-    @ Count of rejected solves
-    telemetry RejectCount: U32
+    @ Count of rejected solves. Named for this component: the ground
+    @ flattens the namespace and a bare RejectCount would collide with
+    @ the magnetic field model's.
+    telemetry SolveRejectCount: U32 id 0x05
 
     @ Age of the oldest input used in the last attempt, ms. The channel
     @ to look at when the status is *_UNAVAILABLE: it tells you whether
     @ a producer stopped or is merely slower than you assumed.
-    telemetry OldestInputAgeMs: U32
+    telemetry OldestInputAgeMs: U32 id 0x06
 
     @ True when staleness is being judged by cycle count because the
     @ clock is not usable. Expected briefly after boot; if it stays
     @ true, the time source never came up.
-    telemetry UsingCycleFallback: bool
+    telemetry UsingCycleFallback: bool id 0x07
 
     # ------------------------------------------------------------------
     # Events
@@ -188,11 +205,13 @@ module Adcs {
                         status: TriadStatus @< reason for the dropout
                       ) \
       severity warning high \
+      id 0x00 \
       format "TRIAD solution lost: {}"
 
     @ Emitted when solutions resume
     event SolutionRestored \
       severity activity high \
+      id 0x01 \
       format "TRIAD solution restored"
 
     @ Observation geometry too close to (anti)parallel
@@ -200,6 +219,7 @@ module Adcs {
                            separationDeg: F32 @< measured separation
                          ) \
       severity warning low \
+      id 0x02 \
       format "TRIAD geometry poor: separation {.2f} deg" \
       throttle 5
 
@@ -209,6 +229,7 @@ module Adcs {
                             errorDeg: F32 @< angle residual
                           ) \
       severity warning high \
+      id 0x03 \
       format "TRIAD geometry mismatch: {.3f} deg residual" \
       throttle 5
 
@@ -218,6 +239,7 @@ module Adcs {
                        ageMs: U32           @< age, ms (0 if unknown)
                      ) \
       severity warning low \
+      id 0x04 \
       format "TRIAD input {} stale ({} ms)" \
       throttle 5
 
@@ -230,6 +252,7 @@ module Adcs {
                          expected: Gnc.FrameId  @< frame required
                        ) \
       severity warning high \
+      id 0x05 \
       format "TRIAD input {} in frame {}, expected {}" \
       throttle 3
 
@@ -239,6 +262,7 @@ module Adcs {
                           passed: bool  @< true if within tolerance
                         ) \
       severity activity high \
+      id 0x06 \
       format "TRIAD self test error {.5f} deg, passed={}"
 
   }

@@ -1,11 +1,9 @@
-// ======================================================================
-// \file   AstroLibTest.cpp
-// \brief  Host-side checks for the astro kernel. No F Prime, no gtest --
-//         plain asserts so it builds anywhere. Port these into
-//         register_fprime_ut() / gtest for CI.
-//
-//   g++ -std=c++11 -O2 -I<repo-root> AstroLib.cpp test/AstroLibTest.cpp -o t
-// ======================================================================
+/**
+ * \file AstroLibTest.cpp
+ * \brief Host-side checks for the astro kernel. No F Prime, no gtest -- plain asserts so it builds anywhere. Port these into register_fprime_ut() / gtest for CI.
+ *
+ * \details   g++ -std=c++11 -O2 -I<repo-root> AstroLib.cpp test/AstroLibTest.cpp -o t
+ */
 #include "Gnc/AstroLib/AstroLib.hpp"
 
 #include <cstdio>
@@ -42,9 +40,11 @@ static double declinationDeg(const Vec3& u) {
 }
 
 int main() {
-    // -----------------------------------------------------------------
-    // 1. Julian date. J2000.0 is 2000-01-01T12:00:00 UTC -> JD 2451545.0
-    // -----------------------------------------------------------------
+    /*
+     * ----------------------------------------------------------------------------
+     * 1. Julian date. J2000.0 is 2000-01-01T12:00:00 UTC -> JD 2451545.0
+     * ----------------------------------------------------------------------------
+     */
     {
         const double u = unixFromUtc(2000, 1, 1, 12, 0, 0.0);
         check("unix seconds at J2000", u, 946728000.0, 0.5);
@@ -52,18 +52,22 @@ int main() {
         check("JD at J2000", jdFlatten(jd), 2451545.0, 1e-9);
     }
 
-    // -----------------------------------------------------------------
-    // 2. GMST at J2000.0 is 280.46061837 deg (18h 41m 50.55s). This is the
-    //    canonical published value, so it pins the sidereal time model.
-    // -----------------------------------------------------------------
+    /*
+     * ----------------------------------------------------------------------------
+     * 2. GMST at J2000.0 is 280.46061837 deg (18h 41m 50.55s). This is the
+     *    canonical published value, so it pins the sidereal time model.
+     * ----------------------------------------------------------------------------
+     */
     {
         const TimeScales ts = computeTimeScales(unixFromUtc(2000, 1, 1, 12, 0, 0.0), 0.0, 32.0);
         check("GMST at J2000 (deg)", gmst1982Rad(ts.tUt1) * RAD2DEG, 280.46061837, 1e-4);
     }
 
-    // -----------------------------------------------------------------
-    // 3. Obliquity at J2000.0 is 23.4392911 deg.
-    // -----------------------------------------------------------------
+    /*
+     * ----------------------------------------------------------------------------
+     * 3. Obliquity at J2000.0 is 23.4392911 deg.
+     * ----------------------------------------------------------------------------
+     */
     {
         const TimeScales ts = computeTimeScales(unixFromUtc(2000, 1, 1, 12, 0, 0.0), 0.0, 32.0);
         const Nutation n = nutation1980(ts.tTt);
@@ -72,10 +76,12 @@ int main() {
               std::fabs(n.eqEq) / ARCSEC2RAD, 8.0, 8.0);  // sanity band: 0-16"
     }
 
-    // -----------------------------------------------------------------
-    // 4. Solar declination at the 2026 solstices and equinoxes.
-    //    These are physics, not model output, so they are a real check.
-    // -----------------------------------------------------------------
+    /*
+     * ----------------------------------------------------------------------------
+     * 4. Solar declination at the 2026 solstices and equinoxes.
+     *    These are physics, not model output, so they are a real check.
+     * ----------------------------------------------------------------------------
+     */
     struct Case { const char* name; int y, mo, d, h, mi; double wantDecDeg, tol; };
     const Case cases[] = {
         { "sun dec, Mar equinox 2026-03-20 14:46",  2026,  3, 20, 14, 46,   0.000, 0.02 },
@@ -89,9 +95,11 @@ int main() {
         check(c.name, declinationDeg(s.unitMod), c.wantDecDeg, c.tol);
     }
 
-    // -----------------------------------------------------------------
-    // 5. Earth-Sun range at perihelion / aphelion 2026.
-    // -----------------------------------------------------------------
+    /*
+     * ----------------------------------------------------------------------------
+     * 5. Earth-Sun range at perihelion / aphelion 2026.
+     * ----------------------------------------------------------------------------
+     */
     {
         TimeScales ts = computeTimeScales(unixFromUtc(2026, 1, 3, 17, 16, 0.0), 0.0, 37.0);
         check("range at perihelion (AU)",
@@ -101,11 +109,13 @@ int main() {
               sunLowPrecisionMod(ts.tUt1, ts.tTt).rangeKm / AU_KM, 1.01668, 0.0005);
     }
 
-    // -----------------------------------------------------------------
-    // 6. Frame chain must be small and invertible-ish: MOD -> TEME should
-    //    move a vector by less than 30 arcsec, never by degrees. This is
-    //    the check that catches a sign error in the nutation rotation.
-    // -----------------------------------------------------------------
+    /*
+     * ----------------------------------------------------------------------------
+     * 6. Frame chain must be small and invertible-ish: MOD -> TEME should
+     *    move a vector by less than 30 arcsec, never by degrees. This is
+     *    the check that catches a sign error in the nutation rotation.
+     * ----------------------------------------------------------------------------
+     */
     {
         const TimeScales ts = computeTimeScales(unixFromUtc(2026, 7, 30, 0, 0, 0.0), 0.0, 37.0);
         const Nutation n = nutation1980(ts.tTt);
@@ -116,10 +126,12 @@ int main() {
         check("MOD->TEME preserves norm", vnorm(teme), 1.0, 1e-12);
     }
 
-    // -----------------------------------------------------------------
-    // 7. Geodetic round trip for a known point: 1000 km above the equator
-    //    at 0 deg longitude.
-    // -----------------------------------------------------------------
+    /*
+     * ----------------------------------------------------------------------------
+     * 7. Geodetic round trip for a known point: 1000 km above the equator
+     *    at 0 deg longitude.
+     * ----------------------------------------------------------------------------
+     */
     {
         double lat, lon, alt;
         ecefToGeodetic(Vec3 { R_EARTH_KM + 1000.0, 0.0, 0.0 }, lat, lon, alt);
@@ -133,9 +145,11 @@ int main() {
         check("geodetic alt (pole)", alt, 500.0, 1e-3);
     }
 
-    // -----------------------------------------------------------------
-    // 8. Shadow model. Place the Sun on +x, then probe the anti-sun axis.
-    // -----------------------------------------------------------------
+    /*
+     * ----------------------------------------------------------------------------
+     * 8. Shadow model. Place the Sun on +x, then probe the anti-sun axis.
+     * ----------------------------------------------------------------------------
+     */
     {
         const Vec3 sun { AU_KM, 0.0, 0.0 };
 
@@ -165,9 +179,11 @@ int main() {
         check("penumbra band exists", static_cast<double>(sawPen), 1.0, 0.0);
     }
 
-    // -----------------------------------------------------------------
-    // 9. Beta angle. Equatorial prograde orbit, Sun on +z -> beta = +90.
-    // -----------------------------------------------------------------
+    /*
+     * ----------------------------------------------------------------------------
+     * 9. Beta angle. Equatorial prograde orbit, Sun on +z -> beta = +90.
+     * ----------------------------------------------------------------------------
+     */
     {
         const Vec3 r { 7000.0, 0.0, 0.0 };
         const Vec3 v { 0.0, 7.5, 0.0 };
@@ -175,9 +191,11 @@ int main() {
         check("beta, sun in orbit plane",  betaAngleRad(r, v, Vec3 { 1, 0, 0 }) * RAD2DEG,  0.0, 1e-9);
     }
 
-    // -----------------------------------------------------------------
-    // 10. SLERP endpoints and midpoint.
-    // -----------------------------------------------------------------
+    /*
+     * ----------------------------------------------------------------------------
+     * 10. SLERP endpoints and midpoint.
+     * ----------------------------------------------------------------------------
+     */
     {
         const Vec3 a { 1, 0, 0 };
         const Vec3 b { 0, 1, 0 };

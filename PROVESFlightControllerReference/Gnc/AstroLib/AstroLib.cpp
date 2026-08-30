@@ -1,7 +1,7 @@
-// ======================================================================
-// \file   AstroLib.cpp
-// \brief  Implementation of the astrodynamics kernel.
-// ======================================================================
+/**
+ * \file AstroLib.cpp
+ * \brief Implementation of the astrodynamics kernel.
+ */
 #include "Gnc/AstroLib/AstroLib.hpp"
 
 namespace Gnc {
@@ -9,19 +9,21 @@ namespace Astro {
 
 namespace {
 
-// Shadow-cone geometry, folded into two constants per cone.
-//
-// Vallado writes the penumbra/umbra vertical extents as
-//     penVert = tan(a_pen) * (R_E/sin(a_pen) + satHoriz)
-//     umbVert = tan(a_umb) * (R_E/sin(a_umb) - satHoriz)
-// The R_E/sin(a) terms are ~1.36e6 km, so evaluating them literally throws
-// away significant digits. Distributing tan() through gives the equivalent
-//     penVert = R_E/cos(a_pen) + tan(a_pen)*satHoriz
-//     umbVert = R_E/cos(a_umb) - tan(a_umb)*satHoriz
-// which is both better conditioned and cheaper.
-//
-// Dynamically initialized at startup (Zephyr runs .init_array when
-// CONFIG_CPP=y). If you prefer no static ctors, replace with literals.
+/**
+ * Shadow-cone geometry, folded into two constants per cone.
+ *
+ * Vallado writes the penumbra/umbra vertical extents as
+ *     penVert = tan(a_pen) * (R_E/sin(a_pen) + satHoriz)
+ *     umbVert = tan(a_umb) * (R_E/sin(a_umb) - satHoriz)
+ * The R_E/sin(a) terms are ~1.36e6 km, so evaluating them literally throws
+ * away significant digits. Distributing tan() through gives the equivalent
+ *     penVert = R_E/cos(a_pen) + tan(a_pen)*satHoriz
+ *     umbVert = R_E/cos(a_umb) - tan(a_umb)*satHoriz
+ * which is both better conditioned and cheaper.
+ *
+ * Dynamically initialized at startup (Zephyr runs .init_array when
+ * CONFIG_CPP=y). If you prefer no static ctors, replace with literals.
+ */
 const double kTanAlphaUmb = std::tan(ALPHA_UMB_RAD);
 const double kTanAlphaPen = std::tan(ALPHA_PEN_RAD);
 const double kSecRUmbKm   = R_EARTH_KM / std::cos(ALPHA_UMB_RAD);
@@ -29,9 +31,11 @@ const double kSecRPenKm   = R_EARTH_KM / std::cos(ALPHA_PEN_RAD);
 
 }  // namespace
 
-// ---------------------------------------------------------------------
-// Vector helpers
-// ---------------------------------------------------------------------
+/*
+ * ============================================================================
+ * Vector helpers
+ * ============================================================================
+ */
 
 Vec3 vunit(const Vec3& a) {
     const double n = vnorm(a);
@@ -44,9 +48,11 @@ Vec3 vunit(const Vec3& a) {
 Vec3 vslerp(const Vec3& a, const Vec3& b, double t) {
     const double c = clampUnit(vdot(a, b));
     const double omega = std::acos(c);
-    // Below ~0.1 mrad the great-circle arc and the chord differ by less
-    // than 1e-9, so normalized lerp is exact for our purposes and skips
-    // three transcendental calls per cycle.
+    /*
+     * Below ~0.1 mrad the great-circle arc and the chord differ by less
+     * than 1e-9, so normalized lerp is exact for our purposes and skips
+     * three transcendental calls per cycle.
+     */
     if (omega < 1.0e-4) {
         return vunit(vadd(vscale(a, 1.0 - t), vscale(b, t)));
     }
@@ -55,13 +61,17 @@ Vec3 vslerp(const Vec3& a, const Vec3& b, double t) {
                 vscale(b, std::sin(t * omega) / so));
 }
 
-// ---------------------------------------------------------------------
-// Time systems
-// ---------------------------------------------------------------------
+/*
+ * ============================================================================
+ * Time systems
+ * ============================================================================
+ */
 
 JulianDate2 jdFromUnixUtc(double unixSecondsUtc) {
-    // Split so that .day carries whole days from the Unix epoch and .frac
-    // carries the sub-day remainder. Keeps ~1 us resolution indefinitely.
+    /*
+     * Split so that .day carries whole days from the Unix epoch and .frac
+     * carries the sub-day remainder. Keeps ~1 us resolution indefinitely.
+     */
     const double days = unixSecondsUtc / SEC_PER_DAY;
     const double whole = std::floor(days);
     JulianDate2 jd;
@@ -75,17 +85,23 @@ TimeScales computeTimeScales(double unixSecondsUtc, double dut1Sec, double taiMi
 
     ts.jdUtc = jdFromUnixUtc(unixSecondsUtc);
 
-    // UT1 = UTC + (UT1-UTC). Drives Earth rotation: GMST and the Sun's
-    // mean longitude.
+    /*
+     * UT1 = UTC + (UT1-UTC). Drives Earth rotation: GMST and the Sun's
+     * mean longitude.
+     */
     ts.jdUt1      = ts.jdUtc;
     ts.jdUt1.frac = ts.jdUtc.frac + dut1Sec / SEC_PER_DAY;
 
-    // TT = TAI + 32.184 = UTC + (TAI-UTC) + 32.184. Drives the dynamical
-    // arguments: nutation, obliquity, the Sun's mean anomaly.
+    /*
+     * TT = TAI + 32.184 = UTC + (TAI-UTC) + 32.184. Drives the dynamical
+     * arguments: nutation, obliquity, the Sun's mean anomaly.
+     */
     const double ttOffsetDays = (taiMinusUtcSec + TT_MINUS_TAI_SEC) / SEC_PER_DAY;
 
-    // Compute centuries part-wise so the 2.4e6 day offset is subtracted
-    // before the small fraction is added.
+    /*
+     * Compute centuries part-wise so the 2.4e6 day offset is subtracted
+     * before the small fraction is added.
+     */
     ts.tUt1 = ((ts.jdUt1.day - JD_J2000) + ts.jdUt1.frac) / DAYS_PER_JCENT;
     ts.tTt  = ((ts.jdUtc.day - JD_J2000) + (ts.jdUtc.frac + ttOffsetDays)) / DAYS_PER_JCENT;
 
@@ -95,9 +111,11 @@ TimeScales computeTimeScales(double unixSecondsUtc, double dut1Sec, double taiMi
 double gmst1982Rad(double tUt1) {
     const double t2 = tUt1 * tUt1;
 
-    // 876600 h * 3600 s/h = 3155760000 s. Reduce this dominant term mod one
-    // day *before* summing, otherwise at T ~ 0.26 the product is ~8e8 s and
-    // the 1e-4 s terms fall off the bottom of the mantissa.
+    /*
+     * 876600 h * 3600 s/h = 3155760000 s. Reduce this dominant term mod one
+     * day *before* summing, otherwise at T ~ 0.26 the product is ~8e8 s and
+     * the 1e-4 s terms fall off the bottom of the mantissa.
+     */
     double gmstSec = 67310.54841
                    + std::fmod(3155760000.0 * tUt1, SEC_PER_DAY)
                    + 8640184.812866 * tUt1
@@ -114,9 +132,11 @@ double gmst1982Rad(double tUt1) {
 
 namespace {
 
-//! Julian date at 0h UT of a Gregorian calendar date. Integer-only
-//! (Fliegel & Van Flandern), so it is exact for every year we care
-//! about and costs no transcendentals.
+/**
+ * Julian date at 0h UT of a Gregorian calendar date. Integer-only
+ * (Fliegel & Van Flandern), so it is exact for every year we care
+ * about and costs no transcendentals.
+ */
 double jdAtMidnight(long year, int month, int day) {
     const long a  = (14 - month) / 12;
     const long y  = year + 4800 - a;
@@ -143,19 +163,23 @@ double decimalYearFromJd(double jdUt1) {
     l = j / 11;
     const long year = 100 * (n - 49) + i + l;
 
-    // Divide by the actual length of THIS year, so 2028 gets 366 days
-    // and the fraction stays continuous across the boundary. No leap
-    // year special case is written anywhere: it falls out of the two
-    // integer JD conversions.
+    /*
+     * Divide by the actual length of THIS year, so 2028 gets 366 days
+     * and the fraction stays continuous across the boundary. No leap
+     * year special case is written anywhere: it falls out of the two
+     * integer JD conversions.
+     */
     const double jdStart = jdAtMidnight(year, 1, 1);
     const double jdEnd   = jdAtMidnight(year + 1, 1, 1);
 
     return static_cast<double>(year) + (jdUt1 - jdStart) / (jdEnd - jdStart);
 }
 
-// ---------------------------------------------------------------------
-// Nutation
-// ---------------------------------------------------------------------
+/*
+ * ============================================================================
+ * Nutation
+ * ============================================================================
+ */
 
 Nutation nutation1980(double tTt) {
     const double t  = tTt;
@@ -193,9 +217,11 @@ Nutation nutation1980(double tTt) {
     return n;
 }
 
-// ---------------------------------------------------------------------
-// Frame rotations
-// ---------------------------------------------------------------------
+/*
+ * ============================================================================
+ * Frame rotations
+ * ============================================================================
+ */
 
 Vec3 rot1(const Vec3& v, double a) {
     const double c = std::cos(a);
@@ -260,13 +286,17 @@ void ecefToGeodetic(const Vec3& r, double& latRad, double& lonRad, double& altKm
     }
 }
 
-// ---------------------------------------------------------------------
-// Solar ephemeris
-// ---------------------------------------------------------------------
+/*
+ * ============================================================================
+ * Solar ephemeris
+ * ============================================================================
+ */
 
 SunState sunLowPrecisionMod(double tUt1, double tTdb) {
-    // 1. Mean longitude of the Sun, referred to the mean equinox of date.
-    //    Driven by UT1 in the classical formulation.
+    /*
+     * 1. Mean longitude of the Sun, referred to the mean equinox of date.
+     *    Driven by UT1 in the classical formulation.
+     */
     const double lambdaM = (280.460 + 36000.771 * tUt1) * DEG2RAD;
 
     // 2. Mean anomaly of the Sun. A dynamical argument, so TDB (~= TT).
@@ -277,8 +307,10 @@ SunState sunLowPrecisionMod(double tUt1, double tTdb) {
     const double cM  = std::cos(M);
     const double c2M = std::cos(2.0 * M);
 
-    // 3. Equation of centre: two-term expansion of Kepler's equation for
-    //    e = 0.0167. Converts mean longitude to true ecliptic longitude.
+    /*
+     * 3. Equation of centre: two-term expansion of Kepler's equation for
+     *    e = 0.0167. Converts mean longitude to true ecliptic longitude.
+     */
     const double lambdaEcl = lambdaM + (1.914666471 * sM + 0.019994643 * s2M) * DEG2RAD;
 
     // 4. Radius vector from the same expansion, in AU.
@@ -287,8 +319,10 @@ SunState sunLowPrecisionMod(double tUt1, double tTdb) {
     // 5. Mean obliquity of the ecliptic.
     const double eps = (23.439291 - 0.0130042 * tTdb) * DEG2RAD;
 
-    // 6. Rotate the ecliptic-plane unit vector (cos L, sin L, 0) about the
-    //    1-axis by -eps to land in the equatorial MOD frame.
+    /*
+     * 6. Rotate the ecliptic-plane unit vector (cos L, sin L, 0) about the
+     *    1-axis by -eps to land in the equatorial MOD frame.
+     */
     const double sl = std::sin(lambdaEcl);
     SunState out;
     out.unitMod.x = std::cos(lambdaEcl);
@@ -300,13 +334,17 @@ SunState sunLowPrecisionMod(double tUt1, double tTdb) {
     return out;
 }
 
-// ---------------------------------------------------------------------
-// Illumination and geometry
-// ---------------------------------------------------------------------
+/*
+ * ============================================================================
+ * Illumination and geometry
+ * ============================================================================
+ */
 
 Illumination shadowConical(const Vec3& rSatKm, const Vec3& rSunKm) {
-    // Sunward hemisphere is always lit; cheap early out that also skips
-    // the sqrt below for roughly half of every orbit.
+    /*
+     * Sunward hemisphere is always lit; cheap early out that also skips
+     * the sqrt below for roughly half of every orbit.
+     */
     if (vdot(rSatKm, rSunKm) >= 0.0) {
         return Illumination::SUNLIT;
     }
@@ -352,9 +390,11 @@ Vec3 sunUnitFromSpacecraft(const Vec3& rSatKm, const Vec3& rSunKm, double& range
 double betaAngleRad(const Vec3& rKm, const Vec3& vKmS, const Vec3& sunUnit) {
     const Vec3 h = vunit(vcross(rKm, vKmS));
 
-    // beta = 90deg - angle(h, s). The obvious asin(h.s) form loses ~8 digits
-    // near beta = +/-90 because asin has an infinite derivative at 1. The
-    // atan2 form is well conditioned across the whole range.
+    /*
+     * beta = 90deg - angle(h, s). The obvious asin(h.s) form loses ~8 digits
+     * near beta = +/-90 because asin has an infinite derivative at 1. The
+     * atan2 form is well conditioned across the whole range.
+     */
     const double cosTheta = vdot(h, sunUnit);
     const double sinTheta = vnorm(vcross(h, sunUnit));
     return std::atan2(cosTheta, sinTheta);

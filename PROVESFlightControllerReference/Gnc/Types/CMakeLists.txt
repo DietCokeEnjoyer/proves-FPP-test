@@ -11,6 +11,9 @@
 register_fprime_module(
     AUTOCODER_INPUTS
         "${CMAKE_CURRENT_LIST_DIR}/GncTypes.fpp"
+    HEADERS
+        "${CMAKE_CURRENT_LIST_DIR}/GncConvert.hpp"
     DEPENDS
         Fw_Time
+        Gnc_AstroLib   # GncConvert.hpp converts Astro types
 )

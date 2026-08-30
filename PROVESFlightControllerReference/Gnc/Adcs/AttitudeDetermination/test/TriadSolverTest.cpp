@@ -1,17 +1,17 @@
-// ======================================================================
-// \title  TriadSolverTest.cpp
-// \brief  Host-side test for the TRIAD solver. No F Prime, no hardware.
-//
-//   c++ -std=c++14 -I.. -I<eigen> TriadSolverTest.cpp ../TriadSolver.cpp
-//
-// Build this WITHOUT EIGEN_NO_DEBUG so Eigen's internal asserts stay
-// live -- the flight build disables them, but you want them here.
-//
-// The interesting test is not "does it return OK". It is the noise
-// sweep at the bottom: it demonstrates the 1/sin(separation) error
-// amplification that drives the MIN_SEPARATION_DEG parameter, and it
-// shows the accuracy asymmetry between the primary and secondary legs.
-// ======================================================================
+/**
+ * \file TriadSolverTest.cpp
+ * \brief Host-side test for the TRIAD solver. No F Prime, no hardware.
+ *
+ * \details   c++ -std=c++14 -I.. -I<eigen> TriadSolverTest.cpp ../TriadSolver.cpp
+ *
+ * Build this WITHOUT EIGEN_NO_DEBUG so Eigen's internal asserts stay
+ * live -- the flight build disables them, but you want them here.
+ *
+ * The interesting test is not "does it return OK". It is the noise
+ * sweep at the bottom: it demonstrates the 1/sin(separation) error
+ * amplification that drives the MIN_SEPARATION_DEG parameter, and it
+ * shows the accuracy asymmetry between the primary and secondary legs.
+ */
 
 #include "TriadSolver.hpp"
 
@@ -23,7 +23,6 @@ using namespace Gnc::Adcs;
 
 namespace {
 
-constexpr float RAD_TO_DEG = 57.29577951308232f;
 
 int g_failures = 0;
 
@@ -34,8 +33,10 @@ void check(bool condition, const char* what) {
     }
 }
 
-//! Build a synthetic case: rotate reference vectors by a known truth
-//! attitude, optionally corrupting the body measurements with noise.
+/**
+ * Build a synthetic case: rotate reference vectors by a known truth
+ * attitude, optionally corrupting the body measurements with noise.
+ */
 TriadObservation makeCase(const Eigen::Quaternionf& truth,
                           const Eigen::Vector3f& primaryRef,
                           const Eigen::Vector3f& secondaryRef,
@@ -64,14 +65,16 @@ void testExactRecovery() {
     TriadSolution sol;
     check(triadSolve(obs, TriadConfig(), sol) == TriadResult::OK, "solve returned OK");
 
-    const float errDeg = sol.quatBodyFromRef.angularDistance(truth) * RAD_TO_DEG;
+    const float errDeg = sol.quatBodyFromRef.angularDistance(truth) * RAD2DEG;
     std::printf("  attitude error: %.6f deg\n", errDeg);
     check(errDeg < 1e-3f, "noise-free error below 1e-3 deg");
 }
 
 void testPrimaryIsExact() {
-    // The defining property of TRIAD: the primary observation is
-    // reproduced exactly even when the secondary is badly corrupted.
+    /*
+     * The defining property of TRIAD: the primary observation is
+     * reproduced exactly even when the secondary is badly corrupted.
+     */
     std::printf("primary leg satisfied exactly despite secondary error\n");
     const Eigen::Quaternionf truth = axisAngle(1.2f, Eigen::Vector3f(1, 1, 1));
     const TriadObservation obs = makeCase(truth,
@@ -84,7 +87,7 @@ void testPrimaryIsExact() {
     check(triadSolve(obs, TriadConfig(), sol) == TriadResult::OK, "solve returned OK");
 
     const Eigen::Vector3f mapped = sol.dcmBodyFromRef * obs.primaryRef;
-    const float residualDeg = std::acos(std::fmin(1.0f, mapped.dot(obs.primaryBody))) * RAD_TO_DEG;
+    const float residualDeg = std::acos(std::fmin(1.0f, mapped.dot(obs.primaryBody))) * RAD2DEG;
     std::printf("  primary residual: %.6f deg\n", residualDeg);
     check(residualDeg < 1e-3f, "A * r1 == b1 to float precision");
 }
@@ -108,18 +111,22 @@ void testRejections() {
 
     // Nearly parallel observations (2 deg apart, below the 5 deg default)
     const Eigen::Vector3f a(0, 0, 1);
-    const Eigen::Vector3f b = axisAngle(2.0f / RAD_TO_DEG, Eigen::Vector3f(1, 0, 0)) * a;
+    const Eigen::Vector3f b = axisAngle(2.0f / RAD2DEG, Eigen::Vector3f(1, 0, 0)) * a;
     const TriadObservation colinear = makeCase(Eigen::Quaternionf::Identity(), a, b);
     check(triadSolve(colinear, cfg, sol) == TriadResult::BODY_COLINEAR, "colinear rejected");
 
-    // Antiparallel: sin is also ~0 here, which is why the check uses
-    // sin and not the dot product.
+    /*
+     * Antiparallel: sin is also ~0 here, which is why the check uses
+     * sin and not the dot product.
+     */
     const TriadObservation anti =
         makeCase(Eigen::Quaternionf::Identity(), a, Eigen::Vector3f(0, 0, -0.999f));
     check(triadSolve(anti, cfg, sol) == TriadResult::BODY_COLINEAR, "antiparallel rejected");
 
-    // Inconsistent geometry: body pair 90 deg apart, reference pair 45.
-    // Nothing about the individual vectors is wrong; only the pair is.
+    /*
+     * Inconsistent geometry: body pair 90 deg apart, reference pair 45.
+     * Nothing about the individual vectors is wrong; only the pair is.
+     */
     TriadObservation bad;
     bad.primaryRef = Eigen::Vector3f(0, 0, 1);
     bad.secondaryRef = Eigen::Vector3f(0.707f, 0, 0.707f).normalized();
@@ -129,9 +136,11 @@ void testRejections() {
 }
 
 void testNoiseVsSeparation() {
-    // Why MIN_SEPARATION_DEG exists. Error about the primary axis grows
-    // as roughly 1/sin(separation), so the same sensor noise produces
-    // wildly different attitude error depending purely on orbit geometry.
+    /*
+     * Why MIN_SEPARATION_DEG exists. Error about the primary axis grows
+     * as roughly 1/sin(separation), so the same sensor noise produces
+     * wildly different attitude error depending purely on orbit geometry.
+     */
     std::printf("attitude error vs observation separation (0.5 deg sensor noise)\n");
 
     std::mt19937 rng(12345);
@@ -144,7 +153,7 @@ void testNoiseVsSeparation() {
 
     for (float sepDeg : {90.0f, 45.0f, 20.0f, 10.0f, 5.0f, 2.0f, 1.0f}) {
         const Eigen::Vector3f ref1(0, 0, 1);
-        const Eigen::Vector3f ref2 = axisAngle(sepDeg / RAD_TO_DEG, Eigen::Vector3f(1, 0, 0)) * ref1;
+        const Eigen::Vector3f ref2 = axisAngle(sepDeg / RAD2DEG, Eigen::Vector3f(1, 0, 0)) * ref1;
 
         float sumSq = 0.0f;
         const int N = 500;
@@ -155,7 +164,7 @@ void testNoiseVsSeparation() {
 
             TriadSolution sol;
             if (triadSolve(obs, cfg, sol) == TriadResult::OK) {
-                const float e = sol.quatBodyFromRef.angularDistance(truth) * RAD_TO_DEG;
+                const float e = sol.quatBodyFromRef.angularDistance(truth) * RAD2DEG;
                 sumSq += e * e;
             }
         }

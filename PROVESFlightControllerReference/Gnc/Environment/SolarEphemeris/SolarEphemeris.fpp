@@ -25,7 +25,7 @@ module Environment {
   passive component SolarEphemeris {
 
     @ Orbit state. Arrival drives one evaluation.
-    guarded input port orbitIn: Gnc.OrbitUpdate
+    guarded input port orbitIn: Gnc.OrbitStateSend
 
     @ Sun direction as a plain vector observation, TEME, for the
     @ attitude chain. Narrow contract on purpose: it lets the TRIAD
@@ -34,16 +34,16 @@ module Environment {
 
     @ Full solar geometry, for power (array output, eclipse budgeting)
     @ and thermal.
-    output port solarOut: Gnc.SolarUpdate
+    output port solarOut: Gnc.SolarStateSend
 
     command recv  port cmdIn
     command reg   port cmdRegOut
     command resp  port cmdResponseOut
 
-    event      port eventOut
-    text event port textEventOut
+    event      port logOut
+    text event port logTextOut
     telemetry  port tlmOut
-    time get   port timeGetOut
+    time get   port timeCaller
 
     param get port prmGetOut
     param set port prmSetOut
@@ -61,7 +61,7 @@ module Environment {
     param SUN_SEGMENT_SEC: F64 default 60.0 id 0x00
 
     @ Unit vector toward the Sun, TEME
-    telemetry SunUnitTeme: Gnc.Vector3 id 0x00
+    telemetry SunUnitTeme: Gnc.Vec3d id 0x00
 
     @ Range to the Sun, km
     telemetry SunRangeKm: F64 id 0x01
@@ -70,11 +70,14 @@ module Environment {
     telemetry BetaDeg: F32 id 0x02
 
     @ Current illumination state
-    telemetry Illum: Gnc.IlluminationState id 0x03
+    telemetry Illumination: Gnc.IlluminationState id 0x03
 
     @ False when running without an orbit: the Sun vector is geocentric
     @ and illumination / beta are not meaningful.
-    telemetry HasOrbit: bool id 0x04
+    telemetry GeometryUsable: bool id 0x04
+
+    @ Diagnostic reason for the current solar state
+    telemetry Validity: Gnc.SolarValidity id 0x05
 
     @ Entered the Earth's shadow
     event EclipseEntry(
@@ -101,7 +104,7 @@ module Environment {
       throttle 3
 
     @ Orbit state carried no usable time, so nothing can be computed.
-    event NoTimeAvailable \
+    event TimeMissing \
       severity warning high \
       id 0x03 \
       format "No valid time in orbit state, solar ephemeris suspended" \

@@ -1,22 +1,18 @@
-// ======================================================================
-// MagChainTest.cpp
-//
-// Host test for the MagneticFieldModel <- OrbitPropagator seam. No F Prime
-// and no hardware: it reproduces exactly what evaluate() does, so the
-// three things that seam gets wrong when it is wrong are all visible on
-// a workstation in one second.
-//
-//   1. UNITS. XYZgeomag wants ITRS metres; SGP4 produces kilometres.
-//      Getting this backwards puts the evaluation 1000x too close to
-//      the centre of the Earth, where the dipole term blows up.
-//   2. FRAME ROUND TRIP. ECEF -> TEME must undo TEME -> ECEF exactly.
-//   3. TIME PRECISION. GMST from an F32 decimal year vs. from an F64
-//      one. This is the check that fails loudest on the old code.
-//
-// Build:
-//   g++ -std=c++11 -O2 -I. -IGnc/AstroLib Gnc/AstroLib/AstroLib.cpp
-//       Gnc/Environment/MagneticFieldModel/test/MagChainTest.cpp -o magchaintest
-// ======================================================================
+/**
+ * \file MagChainTest.cpp
+ * \brief Host test for the MagneticFieldModel <- OrbitPropagator seam. No F Prime and no hardware: it reproduces exactly what evaluate() does, so the three things that seam gets wrong when it is wrong are all visible on a workstation in one second.
+ *
+ * \details   1. UNITS. XYZgeomag wants ITRS metres; SGP4 produces kilometres.
+ *      Getting this backwards puts the evaluation 1000x too close to
+ *      the centre of the Earth, where the dipole term blows up.
+ *   2. FRAME ROUND TRIP. ECEF -> TEME must undo TEME -> ECEF exactly.
+ *   3. TIME PRECISION. GMST from an F32 decimal year vs. from an F64
+ *      one. This is the check that fails loudest on the old code.
+ *
+ * Build:
+ *   g++ -std=c++11 -O2 -I. -IGnc/AstroLib Gnc/AstroLib/AstroLib.cpp
+ *       Gnc/Environment/MagneticFieldModel/test/MagChainTest.cpp -o magchaintest
+ */
 
 #include "AstroLib.hpp"
 #include "../lib/XYZgeomag.hpp"
@@ -62,8 +58,10 @@ Vec3 fieldTemeNt(const Vec3& posTemeKm, double jdUt1, double gmstRad, double& al
 }  // namespace
 
 int main() {
-    // A representative ISS-like LEO position: 420 km altitude, 51.6 deg
-    // inclination, at an arbitrary point in the orbit.
+    /*
+     * A representative ISS-like LEO position: 420 km altitude, 51.6 deg
+     * inclination, at an arbitrary point in the orbit.
+     */
     const double jd = 2461233.5;                 // 2026-07-12 00:00 UT1
     const double tUt1 = (jd - JD_J2000) / DAYS_PER_JCENT;
     const double gmst = gmst1982Rad(tUt1);
@@ -73,9 +71,11 @@ int main() {
 
     std::printf("Magnetic chain checks (2026-07-12, ~420 km)\n\n");
 
-    // ------------------------------------------------------------------
-    // 1. Units
-    // ------------------------------------------------------------------
+    /*
+     * ----------------------------------------------------------------------------
+     * 1. Units
+     * ----------------------------------------------------------------------------
+     */
     double altKm = 0.0;
     const Vec3 bNt = fieldTemeNt(posTemeKm, jd, gmst, altKm);
     const double mag = vnorm(bNt);
@@ -88,10 +88,12 @@ int main() {
     check("|B| within the LEO envelope (18000-60000 nT)",
           mag > 18000.0 && mag < 60000.0);
 
-    // The failure mode the old code had: pass km where metres were
-    // expected. The evaluation point ends up ~6800 km from the centre
-    // divided by 1000, i.e. deep inside the Earth, and the r^-3 dipole
-    // term explodes by roughly 10^9.
+    /*
+     * The failure mode the old code had: pass km where metres were
+     * expected. The evaluation point ends up ~6800 km from the centre
+     * divided by 1000, i.e. deep inside the Earth, and the r^-3 dipole
+     * term explodes by roughly 10^9.
+     */
     {
         geomag::Vector p;
         p.x = static_cast<float>(temeToEcef(posTemeKm, gmst).x);   // km, NOT m
@@ -106,9 +108,11 @@ int main() {
               !(badMag > 18000.0 && badMag < 60000.0));
     }
 
-    // ------------------------------------------------------------------
-    // 2. Frame round trip
-    // ------------------------------------------------------------------
+    /*
+     * ----------------------------------------------------------------------------
+     * 2. Frame round trip
+     * ----------------------------------------------------------------------------
+     */
     {
         const Vec3 ecef = temeToEcef(posTemeKm, gmst);
         const Vec3 back = rot3(ecef, -gmst);
@@ -118,31 +122,39 @@ int main() {
         check("TEME -> ECEF -> TEME is exact", err < 1.0e-9, d);
     }
 
-    // A rotation preserves length, so |B| must not depend on GMST even
-    // though the components do. This is the invariant that catches a
-    // sign error in the back-rotation.
+    /*
+     * A rotation preserves length, so |B| must not depend on GMST even
+     * though the components do. This is the invariant that catches a
+     * sign error in the back-rotation.
+     */
     {
         double a = 0.0;
         double b = 0.0;
         const double m1 = vnorm(fieldTemeNt(posTemeKm, jd, gmst, a));
         const double m2 = vnorm(fieldTemeNt(posTemeKm, jd, gmst + 1.0, b));
-        // Different GMST means a different ECEF point, hence a different
-        // field -- but both must still be plausible LEO magnitudes.
+        /*
+         * Different GMST means a different ECEF point, hence a different
+         * field -- but both must still be plausible LEO magnitudes.
+         */
         check("|B| stays in envelope under a different GMST",
               m2 > 18000.0 && m2 < 60000.0);
         (void)m1;
     }
 
-    // ------------------------------------------------------------------
-    // 3. Time precision -- the headline bug
-    // ------------------------------------------------------------------
+    /*
+     * ----------------------------------------------------------------------------
+     * 3. Time precision -- the headline bug
+     * ----------------------------------------------------------------------------
+     */
     {
         const double decYearExact = decimalYearFromJd(jd);
         const float decYearF32 = static_cast<float>(decYearExact);
         const double quantErrYears = std::fabs(double(decYearF32) - decYearExact);
 
-        // Reconstruct what the old component did: derive Earth rotation
-        // from the F32 decimal year rather than from a proper JD.
+        /*
+         * Reconstruct what the old component did: derive Earth rotation
+         * from the F32 decimal year rather than from a proper JD.
+         */
         const double daysFromF32 =
             (double(decYearF32) - 2026.0) * 365.0 + (jd - 2461041.5) * 0.0;
         (void)daysFromF32;
@@ -162,11 +174,13 @@ int main() {
               double(oneUlp) < 0.01);
     }
 
-    // ------------------------------------------------------------------
-    // 4. Field direction changes measurably over an orbit -- i.e. the
-    //    model is actually responding to position, not returning a
-    //    constant that happens to be the right size.
-    // ------------------------------------------------------------------
+    /*
+     * ----------------------------------------------------------------------------
+     * 4. Field direction changes measurably over an orbit -- i.e. the
+     *    model is actually responding to position, not returning a
+     *    constant that happens to be the right size.
+     * ----------------------------------------------------------------------------
+     */
     {
         const Vec3 posB { -posTemeKm.x, -posTemeKm.y, posTemeKm.z };
         double a = 0.0;
