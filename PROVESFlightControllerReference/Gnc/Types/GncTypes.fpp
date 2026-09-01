@@ -1,32 +1,30 @@
 # ======================================================================
 # GncTypes.fpp
 #
-# SINGLE SOURCE OF TRUTH for every data type crossing a component
-# boundary in the GNC chain.
+# Shared datatypes that cross component boundaries in the GNC subsystem.
 #
 # ----------------------------------------------------------------------
 # NAMING RULES. Follow these when adding anything here.
 #
-#   1. UNITS AND FRAMES ARE PART OF THE NAME:
+#   1. Units and frames are included in the name:
 #        <quantity><Frame><Unit>
 #      e.g. posTemeKm, velTemeKmS, gmstRad, sunRangeKm, altKm.
-#      Omit the unit only when the value is genuinely dimensionless
-#      (sunUnitTeme). Omit the frame only when it cannot vary.
+#      Omit the unit when the value dimensionless(sunUnitTeme).
+#      Omit the frame only when it can't vary.
 #
 #      A name must not change as a value crosses a boundary: what is
 #      posTemeKm in a struct is posTemeKm in every function that
 #      handles it.
 #
-#   2. ANGLES ARE RADIANS in every port payload. Degrees appear only
+#   2. Anlges use radians in all port payloads. Degrees appear only
 #      at the telemetry boundary, where the channel name says Deg.
 #
-#   3. PAYLOAD NOUNS carry meaning and are not interchangeable:
-#        State    - a propagated or measured condition of the vehicle
-#        Sample   - one observation, from a sensor or a model
+#   3. Payload nouns carry meaning and are not interchangeable:
+#        State    - a measured or propigated condition of the satellite
+#        Sample   - one observation from a sensor or a model
 #        Solution - an estimate produced by solving something
-#      Do not add a fourth.
 #
-#   4. PUSH PORT TYPES end in Send. The suffix describes the port, not
+#   4. Push port types end in Send. The suffix describes the port, not
 #      the payload.
 #
 #   5. USABILITY is reported as one reason enum plus one boolean per
@@ -41,10 +39,10 @@ module Gnc {
 
   @ Identifies the reference frame a vector is expressed in.
   @
-  @ TEME is the system-wide inertial frame, because that is what SGP4
-  @ natively produces and converting it is extra code that can be wrong.
+  @ TEME is the system-wide inertial frame because it's what SGP4
+  @ produces and converting it is extra code that can be wrong.
   @ The Sun model (MOD) and the magnetic model (ECEF) both rotate INTO
-  @ TEME at their own boundary. Nothing downstream converts anything.
+  @ TEME at their own boundary. No downstream conversions / rotations.
   enum FrameId: U8 {
     @ Unset. Treated as a fault by consumers.
     UNKNOWN = 0
@@ -66,19 +64,17 @@ module Gnc {
 
   # --------------------------------------------------------------------
   # Vectors
+  # Two types: Vec3d (F64) and Vec3f (F32), precision is the only difference. 
+  # SCALAR has a single precision FPU, so Vec3f is used whenever double precision isn't necessary.
   #
-  # Two precisions on purpose, and PRECISION IS THE ONLY DIFFERENCE --
-  # both are struct {x, y, z} so nothing else reads as different.
-  #
-  #   Vec3d (F64) for the orbit domain. SGP4 is a double algorithm and
+  #   Current Usage:
+  #   Vec3d: The orbit domain. SGP4 is a double algorithm and
   #   positions of 7000 km with metre-level meaning need the mantissa.
   #
-  #   Vec3f (F32) for the attitude and field domains. A unit vector in
-  #   F32 is good to ~1e-7, i.e. ~2e-5 deg, four orders of magnitude
+  #   Vec3f: The attitude and field domains. A unit vector in
+  #   F32 is good to ~1e-7 rads or ~2e-5 deg, four orders of magnitude
   #   below the best sun sensor; a field in nT is good to ~0.005 nT
-  #   against a WMM only good to ~150 nT RMS. The RP2350's Cortex-M33
-  #   has a hardware SINGLE precision FPU, so this is the difference
-  #   between native instructions and soft-float emulation.
+  #   against a WMM only good to ~150 nT RMS.
   #
   # --------------------------------------------------------------------
 
@@ -120,7 +116,7 @@ module Gnc {
     valid: bool
   }
 
-  @ Push port for every vector producer: sun sensor, magnetometer,
+  @ Push port for vector producers e.g. sun sensor, magnetometer,
   @ solar ephemeris, magnetic field model.
   port VectorSampleSend(ref sample: VectorSample)
 
@@ -155,7 +151,7 @@ module Gnc {
   @ single "valid" and then reads posTemeKm would get garbage with no
   @ warning. Branch on the flag for the data you are about to read.
   struct OrbitState {
-    @ Diagnostic reason. For events and telemetry, not for branching.
+    @ Diagnostic reason. For events and telemetry, not branching.
     validity: OrbitValidity
 
     @ True when stamp, jdUt1, jdTt and gmstRad are meaningful.
@@ -163,11 +159,6 @@ module Gnc {
 
     @ True when posTemeKm, velTemeKmS, latRad, lonRad, altKm and
     @ tleAgeDays are meaningful.
-    @
-    @ Computed HERE rather than by each consumer testing
-    @ (validity == VALID || validity == STALE). Two consumers
-    @ previously encoded that policy independently and could have
-    @ diverged if a sixth validity state were added.
     positionUsable: bool
 
     @ Wall-clock instant this state describes.
@@ -184,10 +175,7 @@ module Gnc {
     @ Terrestrial Time Julian date. Drives the dynamical arguments:
     @ nutation, obliquity, the Sun's mean anomaly.
     @
-    @ Carried because the solar ephemeris needs it and receives only
-    @ this struct. It was previously approximated downstream as
-    @ jdTt = jdUt1, a silent ~69 s error, even though the propagator
-    @ had already computed the correct value and discarded it.
+    @ Carried for solar ephemeris.
     jdTt: F64
 
     @ Greenwich Mean Sidereal Time at jdUt1, radians, [0, 2pi).
@@ -207,10 +195,6 @@ module Gnc {
 
     @ Sub-satellite geodetic latitude, radians (WGS-84)
     @
-    @ Computed here so the WGS-84 conversion runs once per cycle. It
-    @ previously ran twice on the same position -- once for the ground
-    @ track, once for the magnetic model's altitude gate -- which on a
-    @ soft-float M33 is several wasted transcendentals.
     latRad: F64
 
     @ Sub-satellite geodetic longitude, radians (WGS-84)
@@ -253,9 +237,7 @@ module Gnc {
   @
   @ Same two-capability shape as OrbitState, for the same reason: the
   @ Sun direction needs only a clock, while shadow and beta need an
-  @ orbit. These previously shared a single "valid" plus an unexplained
-  @ "hasOrbit", so a consumer could read betaDeg on a valid struct and
-  @ get an uninitialized number.
+  @ orbit.
   struct SolarState {
     @ Diagnostic reason. For events and telemetry, not for branching.
     validity: SolarValidity
@@ -271,7 +253,7 @@ module Gnc {
     @ geometryUsable, otherwise from the Earth's centre -- a difference
     @ of at most 0.0027 deg in LEO, well under the solar model's own
     @ 0.01 deg, so it stays usable for attitude determination.
-    sunUnitTeme: Vec3d
+    sunUnitTeme: Vec3f
 
     @ Range to the Sun, kilometres
     sunRangeKm: F64

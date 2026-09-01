@@ -11,6 +11,10 @@ build-fprime-*
 # Zephyr workspace
 lib/zephyr-workspace/*
 
+
+# pure c++ test build
+build-host
+
 # MkDocs
 /site/
 

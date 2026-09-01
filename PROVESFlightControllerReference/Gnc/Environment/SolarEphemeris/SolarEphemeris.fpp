@@ -61,7 +61,7 @@ module Environment {
     param SUN_SEGMENT_SEC: F64 default 60.0 id 0x00
 
     @ Unit vector toward the Sun, TEME
-    telemetry SunUnitTeme: Gnc.Vec3d id 0x00
+    telemetry SunUnitTeme: Gnc.Vec3f id 0x00
 
     @ Range to the Sun, km
     telemetry SunRangeKm: F64 id 0x01

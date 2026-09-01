@@ -209,7 +209,7 @@ void SolarEphemeris::orbitIn_handler(FwIndexType portNum, Gnc::OrbitState& state
 void SolarEphemeris::emit(const Gnc::SolarState& solar, const Fw::Time& stamp) {
     if (this->isConnected_sunRefOut_OutputPort(0)) {
         Gnc::VectorSample sample;
-        sample.set_vec(toVec3f(toAstro(solar.get_sunUnitTeme())));
+        sample.set_vec(solar.get_sunUnitTeme());
         sample.set_frame(Gnc::FrameId::TEME);
         /*
          * The ORBIT STATE's epoch, not "now". This component never

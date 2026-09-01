@@ -91,7 +91,7 @@ module Svc {
             format "Command Loss Timer Failed to update most recent time" \
             throttle 1
 
-        @ Command Loss Time in seconds by Default: one day = 3*60*60*24
+        @ Command Loss Time in seconds by Default: three days. one day = 60*60*24
         param COMM_LOSS_TIME: Fw.TimeIntervalValue default {seconds = 3*60*60*24, useconds = 0}
 
         @ File to Read last command loss time from
