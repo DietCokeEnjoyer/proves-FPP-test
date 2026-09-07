@@ -252,55 +252,54 @@ telemetry packets ReferenceDeploymentPackets {
     ReferenceDeployment.detumbleManager.ZTurnsParam
   }
   
-  # Uncomment when topology is updated
-  # @ Orbit state. Group 2: this is live navigation data, and it is what
-  # @ you need to correlate anything else with a position.
-  # packet GncOrbit id 30 group 2 {
-  #   ReferenceDeployment.orbitPropagator.Validity
-  #   ReferenceDeployment.orbitPropagator.PosTemeKm
-  #   ReferenceDeployment.orbitPropagator.VelTemeKmS
-  #   ReferenceDeployment.orbitPropagator.LatDeg
-  #   ReferenceDeployment.orbitPropagator.LonDeg
-  #   ReferenceDeployment.orbitPropagator.AltKm
-  #   ReferenceDeployment.orbitPropagator.GmstDeg
-  #   ReferenceDeployment.orbitPropagator.TleAgeDays
-  # }
+  @ Orbit state. Group 2: this is live navigation data, and it is what
+  @ you need to correlate anything else with a position.
+  packet GncOrbit id 30 group 2 {
+    ReferenceDeployment.orbitPropagator.Validity
+    ReferenceDeployment.orbitPropagator.PosTemeKm
+    ReferenceDeployment.orbitPropagator.VelTemeKmS
+    ReferenceDeployment.orbitPropagator.LatDeg
+    ReferenceDeployment.orbitPropagator.LonDeg
+    ReferenceDeployment.orbitPropagator.AltKm
+    ReferenceDeployment.orbitPropagator.GmstDeg
+    ReferenceDeployment.orbitPropagator.TleAgeDays
+  }
 
-  # @ Solar geometry. Group 2 -- power and thermal want beta and eclipse.
-  # packet GncSolar id 31 group 2 {
-  #   ReferenceDeployment.solarEphemeris.Validity
-  #   ReferenceDeployment.solarEphemeris.SunUnitTeme
-  #   ReferenceDeployment.solarEphemeris.BetaDeg
-  #   ReferenceDeployment.solarEphemeris.Illumination
-  #   ReferenceDeployment.solarEphemeris.GeometryUsable
-  # }
+  @ Solar geometry. Group 2 -- power and thermal want beta and eclipse.
+  packet GncSolar id 31 group 2 {
+    ReferenceDeployment.solarEphemeris.Validity
+    ReferenceDeployment.solarEphemeris.SunUnitTeme
+    ReferenceDeployment.solarEphemeris.BetaDeg
+    ReferenceDeployment.solarEphemeris.Illumination
+    ReferenceDeployment.solarEphemeris.GeometryUsable
+  }
 
-  # @ Magnetic field. Group 2.
-  # packet GncMagnetic id 32 group 2 {
-  #   ReferenceDeployment.magneticFieldModel.FieldTemeNt
-  #   ReferenceDeployment.magneticFieldModel.FieldMagnitudeNt
-  #   ReferenceDeployment.magneticFieldModel.FieldValid
-  # }
+  @ Magnetic field. Group 2.
+  packet GncMagnetic id 32 group 2 {
+    ReferenceDeployment.magneticFieldModel.FieldTemeNt
+    ReferenceDeployment.magneticFieldModel.FieldMagnitudeNt
+    ReferenceDeployment.magneticFieldModel.FieldValid
+  }
 
-  # @ Attitude solution. Group 2.
-  # packet GncAttitude id 33 group 2 {
-  #   ReferenceDeployment.attitudeDetermination.AttQuat
-  #   ReferenceDeployment.attitudeDetermination.Status
-  #   ReferenceDeployment.attitudeDetermination.SeparationDeg
-  #   ReferenceDeployment.attitudeDetermination.GeometryErrDeg
-  # }
+  @ Attitude solution. Group 2.
+  packet GncAttitude id 33 group 2 {
+    ReferenceDeployment.attitudeDetermination.AttQuat
+    ReferenceDeployment.attitudeDetermination.Status
+    ReferenceDeployment.attitudeDetermination.SeparationDeg
+    ReferenceDeployment.attitudeDetermination.GeometryErrDeg
+  }
 
-  # @ GNC health. Group 5 -- diagnostics you want during bring-up and
-  # @ after an anomaly, not every beacon.
-  # packet GncHealth id 34 group 5 {
-  #   ReferenceDeployment.orbitPropagator.CycleUsec
-  #   ReferenceDeployment.magneticFieldModel.FieldRejectCount
-  #   ReferenceDeployment.magneticFieldModel.EvalDecYear
-  #   ReferenceDeployment.attitudeDetermination.SolutionCount
-  #   ReferenceDeployment.attitudeDetermination.SolveRejectCount
-  #   ReferenceDeployment.attitudeDetermination.OldestInputAgeMs
-  #   ReferenceDeployment.attitudeDetermination.UsingCycleFallback
-  # }
+  @ GNC health. Group 5 -- diagnostics you want during bring-up and
+  @ after an anomaly, not every beacon.
+  packet GncHealth id 34 group 5 {
+    ReferenceDeployment.orbitPropagator.CycleUsec
+    ReferenceDeployment.magneticFieldModel.FieldRejectCount
+    ReferenceDeployment.magneticFieldModel.EvalDecYear
+    ReferenceDeployment.attitudeDetermination.SolutionCount
+    ReferenceDeployment.attitudeDetermination.SolveRejectCount
+    ReferenceDeployment.attitudeDetermination.OldestInputAgeMs
+    ReferenceDeployment.attitudeDetermination.UsingCycleFallback
+  }
 
 } omit {
   CdhCore.cmdDisp.CommandErrors
@@ -379,6 +378,6 @@ telemetry packets ReferenceDeploymentPackets {
   ReferenceDeployment.faultManager.LowVoltageCounter
   
   # Probably not useful
-  #ReferenceDeployment.solarEphemeris.SunRangeKm
+  ReferenceDeployment.solarEphemeris.SunRangeKm
 
 }
