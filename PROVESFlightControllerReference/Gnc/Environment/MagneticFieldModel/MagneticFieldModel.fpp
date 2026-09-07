@@ -87,10 +87,10 @@ module Environment {
     @ Field magnitude, nanotesla. In LEO this should sit between
     @ roughly 20000 (equatorial) and 50000 (polar). A number outside
     @ that band means the position, the epoch, or the units are wrong.
-    telemetry FieldMagnitudeNt: F32 format "{.1f}" id 0x01
+    telemetry FieldMagnitudeNt: F32  id 0x01 format "{.1f}" 
 
     @ Decimal year the model was last evaluated at
-    telemetry EvalDecYear: F32 format "{.4f}" id 0x02
+    telemetry EvalDecYear: F32 id 0x02 format "{.4f}" 
 
     @ True if the last evaluation produced a usable field
     telemetry FieldValid: bool id 0x03

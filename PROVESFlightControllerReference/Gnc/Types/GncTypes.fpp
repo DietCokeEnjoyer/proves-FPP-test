@@ -208,7 +208,7 @@ module Gnc {
   }
 
   @ Broadcasts the orbit state.
-  port OrbitStateSend(ref state: OrbitState)
+  port OrbitStateSend(ref orbitState: OrbitState)
 
   # --------------------------------------------------------------------
   # Solar geometry
@@ -268,6 +268,6 @@ module Gnc {
 
   @ Broadcasts solar geometry. Consumed by power (eclipse and beta
   @ drive array output and thermal load) and by ADCS.
-  port SolarStateSend(ref state: SolarState)
+  port SolarStateSend(ref solarState: SolarState)
 
 }

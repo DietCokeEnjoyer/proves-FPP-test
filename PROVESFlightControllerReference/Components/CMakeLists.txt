@@ -1,6 +1,6 @@
 # Include project-wide components here
 
-add_fprime_subdirectory("${CMAKE_CURRENT_LIST_DIR}/ADCS/")
+add_fprime_subdirectory("${CMAKE_CURRENT_LIST_DIR}/Old_ADCS/")
 add_fprime_subdirectory("${CMAKE_CURRENT_LIST_DIR}/AmateurRadio/")
 add_fprime_subdirectory("${CMAKE_CURRENT_LIST_DIR}/AntennaDeployer/")
 add_fprime_subdirectory("${CMAKE_CURRENT_LIST_DIR}/Authenticate/")
@@ -29,4 +29,3 @@ add_fprime_subdirectory("${CMAKE_CURRENT_LIST_DIR}/Watchdog")
 
 # SCALAR Additions
 add_fprime_subdirectory("${CMAKE_CURRENT_LIST_DIR}/FaultManager")
-add_fprime_subdirectory("${CMAKE_CURRENT_LIST_DIR}/MagneticFieldModel")

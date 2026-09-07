@@ -88,7 +88,7 @@ module ReferenceDeployment {
     instance resetManager
     instance fileUplinkCollector
     instance modeManager
-    instance adcs
+    instance oldadcs
 
     # Face Board Instances
     instance thermalManager
@@ -284,7 +284,7 @@ module ReferenceDeployment {
       rateGroup1Hz.RateGroupMemberOut[14] -> startupManager.run
       rateGroup1Hz.RateGroupMemberOut[15] -> powerMonitor.run
       rateGroup1Hz.RateGroupMemberOut[16] -> faultManager.run
-      rateGroup1Hz.RateGroupMemberOut[17] -> adcs.run
+      rateGroup1Hz.RateGroupMemberOut[17] -> oldadcs.run
       rateGroup1Hz.RateGroupMemberOut[18] -> thermalManager.run
       rateGroup1Hz.RateGroupMemberOut[19] -> ComCcsdsLora.authenticationRouter.run
 
@@ -443,13 +443,13 @@ module ReferenceDeployment {
       thermalManager.picoTempGet -> picoTempManager.picoTemperatureGet
     }
 
-    connections adcs {
-      adcs.visibleLightGet[0] -> veml6031Face0Manager.visibleLightGet
-      adcs.visibleLightGet[1] -> veml6031Face1Manager.visibleLightGet
-      adcs.visibleLightGet[2] -> veml6031Face2Manager.visibleLightGet
-      adcs.visibleLightGet[3] -> veml6031Face3Manager.visibleLightGet
-      adcs.visibleLightGet[4] -> veml6031Face5Manager.visibleLightGet
-      adcs.visibleLightGet[5] -> veml6031Face6Manager.visibleLightGet
+    connections oldadcs {
+      oldadcs.visibleLightGet[0] -> veml6031Face0Manager.visibleLightGet
+      oldadcs.visibleLightGet[1] -> veml6031Face1Manager.visibleLightGet
+      oldadcs.visibleLightGet[2] -> veml6031Face2Manager.visibleLightGet
+      oldadcs.visibleLightGet[3] -> veml6031Face3Manager.visibleLightGet
+      oldadcs.visibleLightGet[4] -> veml6031Face5Manager.visibleLightGet
+      oldadcs.visibleLightGet[5] -> veml6031Face6Manager.visibleLightGet
     }
 
     connections ModeManager {

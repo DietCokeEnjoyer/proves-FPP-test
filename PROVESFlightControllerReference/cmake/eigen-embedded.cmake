@@ -22,7 +22,12 @@
 #   cmake -DEIGEN_SOURCE_DIR=/abs/path/to/eigen ...
 ####
 
-if (NOT DEFINED EIGEN_SOURCE_DIR)
+# NOT "NOT DEFINED": a failed configure used to write an empty value into
+# the cache, after which this guard was false forever and the search was
+# skipped -- so fixing the submodule and re-running gave the same
+# "not found" error until you purged the build directory. Testing for an
+# empty value catches both the unset and the poisoned case.
+if (NOT EIGEN_SOURCE_DIR)
     foreach (_candidate
              "${CMAKE_CURRENT_LIST_DIR}/../lib/eigen"      # project-local
              "${CMAKE_CURRENT_LIST_DIR}/../../lib/eigen")  # workspace parent
@@ -33,10 +38,10 @@ if (NOT DEFINED EIGEN_SOURCE_DIR)
     endforeach()
 endif()
 
-set(EIGEN_SOURCE_DIR "${EIGEN_SOURCE_DIR}"
-    CACHE PATH "Path to the Eigen source tree (the dir containing Eigen/)")
-
 if (NOT EIGEN_SOURCE_DIR OR NOT EXISTS "${EIGEN_SOURCE_DIR}/Eigen/Core")
+    # Clear the cache entry before failing, so the next configure searches
+    # again instead of replaying this error.
+    unset(EIGEN_SOURCE_DIR CACHE)
     message(FATAL_ERROR
         "Eigen not found. Searched:\n"
         "  ${CMAKE_CURRENT_LIST_DIR}/../lib/eigen\n"
@@ -44,6 +49,9 @@ if (NOT EIGEN_SOURCE_DIR OR NOT EXISTS "${EIGEN_SOURCE_DIR}/Eigen/Core")
         "Add it:  git submodule add https://gitlab.com/libeigen/eigen.git lib/eigen\n"
         "Or set:  -DEIGEN_SOURCE_DIR=/abs/path/to/eigen")
 endif()
+
+# Cached only after validation, so only a good value is ever persisted.
+set(EIGEN_SOURCE_DIR "${EIGEN_SOURCE_DIR}" CACHE PATH "Path to the Eigen source tree (the dir containing Eigen/)" FORCE)
 
 message(STATUS "GNC: Eigen at ${EIGEN_SOURCE_DIR}")
 

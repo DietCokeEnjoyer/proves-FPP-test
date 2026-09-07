@@ -172,11 +172,11 @@ module Adcs {
 
     @ Angle between the two observations. The key health channel: watch
     @ this to predict when geometry will force TRIAD to drop out.
-    telemetry SeparationDeg: F32 format "{.2f}" id 0x02
+    telemetry SeparationDeg: F32 id 0x02 format "{.2f}" 
 
     @ Body-vs-reference angle disagreement. Should hover near sensor
     @ noise; a persistent bias means a calibration or model error.
-    telemetry GeometryErrDeg: F32 format "{.3f}" id 0x03
+    telemetry GeometryErrDeg: F32 id 0x03 format "{.3f}" 
 
     @ Count of successful solves
     telemetry SolutionCount: U32 id 0x04

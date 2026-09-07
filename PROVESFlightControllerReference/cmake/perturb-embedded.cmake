@@ -16,7 +16,12 @@
 #   cmake -DPERTURB_SOURCE_DIR=/abs/path/to/perturb   to override.
 ####
 
-if (NOT DEFINED PERTURB_SOURCE_DIR)
+# NOT "NOT DEFINED": a failed configure used to write an empty value into
+# the cache, after which this guard was false forever and the search was
+# skipped -- so fixing the submodule and re-running gave the same
+# "not found" error until you purged the build directory. Testing for an
+# empty value catches both the unset and the poisoned case.
+if (NOT PERTURB_SOURCE_DIR)
     foreach (_candidate
              "${CMAKE_CURRENT_LIST_DIR}/../lib/perturb"      # project-local
              "${CMAKE_CURRENT_LIST_DIR}/../../lib/perturb")  # workspace parent
@@ -27,10 +32,10 @@ if (NOT DEFINED PERTURB_SOURCE_DIR)
     endforeach()
 endif()
 
-set(PERTURB_SOURCE_DIR "${PERTURB_SOURCE_DIR}"
-    CACHE PATH "Path to the perturb source tree (the dir containing include/perturb/)")
-
 if (NOT PERTURB_SOURCE_DIR OR NOT EXISTS "${PERTURB_SOURCE_DIR}/include/perturb/perturb.hpp")
+    # Clear the cache entry before failing, so the next configure searches
+    # again instead of replaying this error.
+    unset(PERTURB_SOURCE_DIR CACHE)
     message(FATAL_ERROR
         "perturb not found. Searched:\n"
         "  ${CMAKE_CURRENT_LIST_DIR}/../lib/perturb\n"
@@ -38,6 +43,9 @@ if (NOT PERTURB_SOURCE_DIR OR NOT EXISTS "${PERTURB_SOURCE_DIR}/include/perturb/
         "Add it:  git submodule add https://github.com/gunvirranu/perturb.git lib/perturb\n"
         "Or set:  -DPERTURB_SOURCE_DIR=/abs/path/to/perturb")
 endif()
+
+# Cached only after validation, so only a good value is ever persisted.
+set(PERTURB_SOURCE_DIR "${PERTURB_SOURCE_DIR}" CACHE PATH "Path to the perturb source tree (the dir containing include/perturb/)" FORCE)
 
 message(STATUS "GNC: perturb at ${PERTURB_SOURCE_DIR}")
 
