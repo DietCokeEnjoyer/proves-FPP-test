@@ -15,9 +15,9 @@
  * in OrbitState. If you find yourself wanting the clock here, the
  * quantity you want almost certainly belongs in OrbitState instead.
  */
-#include "Gnc/Environment/SolarEphemeris/SolarEphemeris.hpp"
+#include "PROVESFlightControllerReference/Gnc/Environment/SolarEphemeris/SolarEphemeris.hpp"
 
-#include "Gnc/Types/GncConvert.hpp"
+#include "PROVESFlightControllerReference/Gnc/Types/GncConvert.hpp"
 
 namespace Gnc {
 namespace Environment {

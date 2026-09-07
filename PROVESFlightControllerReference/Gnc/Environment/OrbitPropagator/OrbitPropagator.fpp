@@ -82,12 +82,12 @@ module Environment {
                             line1: string size 80 @< TLE line 1
                             line2: string size 80 @< TLE line 2
                           ) \
-      opcode 0x00
+      opcode 0x10
 
     @ Discard the current TLE. State reverts to NO_TLE, but time and
     @ GMST keep flowing so the solar ephemeris stays alive.
     async command CLEAR_TLE \
-      opcode 0x01
+      opcode 0x11
 
     # ------------------------------------------------------------------
     # Parameters

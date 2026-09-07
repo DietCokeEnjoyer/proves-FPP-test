@@ -5,8 +5,8 @@
 #ifndef Gnc_Adcs_AttitudeDetermination_HPP
 #define Gnc_Adcs_AttitudeDetermination_HPP
 
-#include "Gnc/Adcs/AttitudeDetermination/AttitudeDeterminationComponentAc.hpp"
-#include "Gnc/Adcs/AttitudeDetermination/TriadSolver.hpp"
+#include "PROVESFlightControllerReference/Gnc/Adcs/AttitudeDetermination/AttitudeDeterminationComponentAc.hpp"
+#include "PROVESFlightControllerReference/Gnc/Adcs/AttitudeDetermination/TriadSolver.hpp"
 
 namespace Gnc {
 namespace Adcs {

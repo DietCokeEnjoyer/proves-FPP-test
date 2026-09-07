@@ -5,8 +5,8 @@
 #ifndef Gnc_Environment_OrbitPropagator_HPP
 #define Gnc_Environment_OrbitPropagator_HPP
 
-#include "Gnc/Environment/OrbitPropagator/OrbitPropagatorComponentAc.hpp"
-#include "Gnc/AstroLib/AstroLib.hpp"
+#include "PROVESFlightControllerReference/Gnc/Environment/OrbitPropagator/OrbitPropagatorComponentAc.hpp"
+#include "PROVESFlightControllerReference/Gnc/AstroLib/AstroLib.hpp"
 
 #include <perturb/perturb.hpp>
 

@@ -5,8 +5,8 @@
 #ifndef Gnc_Environment_SolarEphemeris_HPP
 #define Gnc_Environment_SolarEphemeris_HPP
 
-#include "Gnc/Environment/SolarEphemeris/SolarEphemerisComponentAc.hpp"
-#include "Gnc/AstroLib/AstroLib.hpp"
+#include "PROVESFlightControllerReference/Gnc/Environment/SolarEphemeris/SolarEphemerisComponentAc.hpp"
+#include "PROVESFlightControllerReference/Gnc/AstroLib/AstroLib.hpp"
 
 namespace Gnc {
 namespace Environment {

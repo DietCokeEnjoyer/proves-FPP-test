@@ -6,8 +6,8 @@
 #ifndef Gnc_Environment_MagneticFieldModel_HPP
 #define Gnc_Environment_MagneticFieldModel_HPP
 
-#include "Gnc/Environment/MagneticFieldModel/MagneticFieldModelComponentAc.hpp"
-#include "Gnc/AstroLib/AstroLib.hpp"
+#include "PROVESFlightControllerReference/Gnc/Environment/MagneticFieldModel/MagneticFieldModelComponentAc.hpp"
+#include "PROVESFlightControllerReference/Gnc/AstroLib/AstroLib.hpp"
 
 namespace Gnc {
 namespace Environment {

@@ -53,7 +53,7 @@ module Environment {
     @ orbitIn also touches, and on a passive component a sync command
     @ would run on the dispatcher thread without the component mutex.
     guarded command RESYNC_SUN \
-      opcode 0x00
+      opcode 0x10
 
     @ Length of a solar interpolation segment, seconds. The Sun moves
     @ ~1.1e-5 deg/s, so a 60 s segment costs < 0.0001 deg of SLERP error

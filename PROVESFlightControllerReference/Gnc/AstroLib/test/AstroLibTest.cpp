@@ -4,7 +4,7 @@
  *
  * \details   g++ -std=c++11 -O2 -I<repo-root> AstroLib.cpp test/AstroLibTest.cpp -o t
  */
-#include "Gnc/AstroLib/AstroLib.hpp"
+#include "PROVESFlightControllerReference/Gnc/AstroLib/AstroLib.hpp"
 
 #include <cstdio>
 #include <cstdlib>

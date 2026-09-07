@@ -13,11 +13,11 @@
  * and an implicit assumption.
  */
 
-#include "Gnc/Environment/MagneticFieldModel/MagneticFieldModel.hpp"
+#include "PROVESFlightControllerReference/Gnc/Environment/MagneticFieldModel/MagneticFieldModel.hpp"
 
 #include <cmath>
 
-#include "Gnc/Types/GncConvert.hpp"
+#include "PROVESFlightControllerReference/Gnc/Types/GncConvert.hpp"
 
 #include "lib/XYZgeomag.hpp"
 

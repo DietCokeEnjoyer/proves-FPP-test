@@ -153,12 +153,12 @@ module Adcs {
 
     @ Force one TRIAD evaluation immediately using the latched samples
     sync command SOLVE_NOW \
-      opcode 0x00
+      opcode 0x10
 
     @ Run TRIAD against a built-in synthetic case with a known answer.
     @ Verifies the math, the FPU, and the compiler flags on the target.
     sync command SELF_TEST \
-      opcode 0x01
+      opcode 0x11
 
     # ------------------------------------------------------------------
     # Telemetry

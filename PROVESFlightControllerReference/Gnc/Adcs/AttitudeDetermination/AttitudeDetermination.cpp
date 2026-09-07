@@ -8,7 +8,7 @@
  * knows nothing about F Prime and can be unit tested on a workstation.
  */
 
-#include "Gnc/Adcs/AttitudeDetermination/AttitudeDetermination.hpp"
+#include "PROVESFlightControllerReference/Gnc/Adcs/AttitudeDetermination/AttitudeDetermination.hpp"
 
 #include <cmath>
 

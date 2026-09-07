@@ -14,9 +14,9 @@
  * its own time -- is what produced the 16.1 deg Earth rotation error in
  * the original code.
  */
-#include "Gnc/Environment/OrbitPropagator/OrbitPropagator.hpp"
+#include "PROVESFlightControllerReference/Gnc/Environment/OrbitPropagator/OrbitPropagator.hpp"
 
-#include "Gnc/Types/GncConvert.hpp"
+#include "PROVESFlightControllerReference/Gnc/Types/GncConvert.hpp"
 
 #include <cstring>
 
