@@ -1,12 +1,11 @@
 ####
-# Gnc/Types
+# GncType
 #
-# Shared GNC data types and ports. Every other module in the chain
-# depends on this one and nothing else depends on them, so it is the
-# only place a type used across a component boundary may be defined.
+# Contains shared GNC data types and ports. 
 #
-# Fw/Time is an explicit dependency because Gnc.VectorSample and
-# Gnc.OrbitState carry an Fw.Time member.
+# Define all types that cross component boundaries here 
+# to keep other GNC components independent of each other.
+#
 ####
 register_fprime_module(
     AUTOCODER_INPUTS
@@ -14,6 +13,6 @@ register_fprime_module(
     HEADERS
         "${CMAKE_CURRENT_LIST_DIR}/GncConvert.hpp"
     DEPENDS
-        Fw_Time
+        Fw_Time # Fw.Time is used by Gnc.VectorSample and Gnc.OrbitState
         PROVESFlightControllerReference_Gnc_AstroLib   # GncConvert.hpp converts Astro types
 )

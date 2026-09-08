@@ -4,19 +4,19 @@
 # Shared datatypes that cross component boundaries in the GNC subsystem.
 #
 # ----------------------------------------------------------------------
-# NAMING RULES. Follow these when adding anything here.
+#   Naming Conventions
 #
 #   1. Units and frames are included in the name:
 #        <quantity><Frame><Unit>
 #      e.g. posTemeKm, velTemeKmS, gmstRad, sunRangeKm, altKm.
 #      Omit the unit when the value dimensionless(sunUnitTeme).
 #      Omit the frame only when it can't vary.
-#
-#      A name must not change as a value crosses a boundary: what is
-#      posTemeKm in a struct is posTemeKm in every function that
+#      
+#      Keep names the same when they cross boundaries:
+#      posTemeKm in a struct should be posTemeKm in every function that
 #      handles it.
 #
-#   2. Anlges use radians in all port payloads. Degrees appear only
+#   2. Angles use radians in all port payloads. Degrees appear only
 #      at the telemetry boundary, where the channel name says Deg.
 #
 #   3. Payload nouns carry meaning and are not interchangeable:
@@ -26,9 +26,6 @@
 #
 #   4. Push port types end in Send. The suffix describes the port, not
 #      the payload.
-#
-#   5. USABILITY is reported as one reason enum plus one boolean per
-#      independent capability the struct gates. See OrbitState.
 # ======================================================================
 
 module Gnc {
@@ -43,6 +40,7 @@ module Gnc {
   @ produces and converting it is extra code that can be wrong.
   @ The Sun model (MOD) and the magnetic model (ECEF) both rotate INTO
   @ TEME at their own boundary. No downstream conversions / rotations.
+  @
   enum FrameId: U8 {
     @ Unset. Treated as a fault by consumers.
     UNKNOWN = 0
@@ -68,13 +66,12 @@ module Gnc {
   # SCALAR has a single precision FPU, so Vec3f is used whenever double precision isn't necessary.
   #
   #   Current Usage:
-  #   Vec3d: The orbit domain. SGP4 is a double algorithm and
-  #   positions of 7000 km with metre-level meaning need the mantissa.
+  #   Vec3d: The orbit domain. SGP4 needs double precision.
   #
-  #   Vec3f: The attitude and field domains. A unit vector in
-  #   F32 is good to ~1e-7 rads or ~2e-5 deg, four orders of magnitude
-  #   below the best sun sensor; a field in nT is good to ~0.005 nT
-  #   against a WMM only good to ~150 nT RMS.
+  #   Vec3f: The attitude and field domains. 
+  #   F32 unit vectors are good to ~1e-7 rads or ~2e-5 deg, four orders of magnitude
+  #   below the best sun sensor.
+  #   A field in nT is good to ~0.005 nT, WMM only good to ~150 nT RMS.
   #
   # --------------------------------------------------------------------
 
@@ -103,16 +100,13 @@ module Gnc {
   @ Not required to be a unit vector, so consumers that need unit vectors 
   @ must normalize the sample.
   struct VectorSample {
-    @ The vector. Units and frame come from the producer; see the port
-    @ it arrived on.
+    @ The vector. Quantity and units kept in the port name.
     vec: Vec3f
-    @ Which frame vec is expressed in. Consumers MUST check this. TODO: WHY
+    @ Which frame vec is expressed in.
     frame: FrameId
-    @ When the observation was taken, not when it was sent. Drives
-    @ staleness. A producer with no valid clock sends time base
-    @ TB_NONE; consumers then fall back to cycle counting.
+    @ When the observation was taken.
     stamp: Fw.Time
-    @ Producer's own quality flag. False short-circuits any consumer.
+    @ Is the sample valid?
     valid: bool
   }
 
@@ -140,16 +134,6 @@ module Gnc {
   }
 
   @ Spacecraft orbit state for one cycle, TEME Frame.
-  @
-  @ The spacecraft-wide navigation product: comms wants it for pass
-  @ prediction and antenna pointing, power and thermal for eclipse
-  @ forecasting, the magnetic model to evaluate the WMM, the solar
-  @ ephemeris for parallax and shadow.
-  @
-  @ TWO INDEPENDENT CAPABILITY FLAGS, not one. Time can be good while
-  @ position is not (NO_TLE, PROP_ERROR), and a consumer that checks a
-  @ single "valid" and then reads posTemeKm would get garbage with no
-  @ warning. Branch on the flag for the data you are about to read.
   struct OrbitState {
     @ Diagnostic reason. For events and telemetry, not branching.
     validity: OrbitValidity
@@ -180,17 +164,13 @@ module Gnc {
 
     @ Greenwich Mean Sidereal Time at jdUt1, radians, [0, 2pi).
     @
-    @ Computed once for the whole subsystem and carried. GMST is the
-    @ most error-sensitive quantity here -- 15 deg per hour of clock
-    @ error -- and it used to be derived independently in two
-    @ components, the second of which quantized it to 16.1 deg by
-    @ deriving it from an F32 decimal year. Never recompute this.
+    @ Computed once for the whole subsystem and carried.
     gmstRad: F64
 
-    @ Spacecraft position, TEME, kilometres
+    @ Spacecraft position, TEME, kilometers
     posTemeKm: Vec3d
 
-    @ Spacecraft velocity, TEME, kilometres per second
+    @ Spacecraft velocity, TEME, kilometers per second
     velTemeKmS: Vec3d
 
     @ Sub-satellite geodetic latitude, radians (WGS-84)
@@ -200,7 +180,7 @@ module Gnc {
     @ Sub-satellite geodetic longitude, radians (WGS-84)
     lonRad: F64
 
-    @ Geodetic altitude above the WGS-84 ellipsoid, kilometres
+    @ Geodetic altitude above the WGS-84 ellipsoid, kilometers
     altKm: F64
 
     @ Age of the loaded TLE, days. SGP4 degrades roughly 1-3 km/day.
@@ -233,11 +213,7 @@ module Gnc {
     VALID      = 2
   }
 
-  @ Solar geometry for one cycle. TEME throughout.
-  @
-  @ Same two-capability shape as OrbitState, for the same reason: the
-  @ Sun direction needs only a clock, while shadow and beta need an
-  @ orbit.
+  @ Solar geometry for one cycle.
   struct SolarState {
     @ Diagnostic reason. For events and telemetry, not for branching.
     validity: SolarValidity
@@ -250,24 +226,22 @@ module Gnc {
     geometryUsable: bool
 
     @ Unit vector toward the Sun, TEME. From the spacecraft when
-    @ geometryUsable, otherwise from the Earth's centre -- a difference
-    @ of at most 0.0027 deg in LEO, well under the solar model's own
-    @ 0.01 deg, so it stays usable for attitude determination.
+    @ geometryUsable, otherwise from the Earth's center. 
+    @ Difference is at most 0.0027 deg in LEO, below the solar model's 0.01 deg precision,
+    @ so it's usable for attitude determination in either case.
     sunUnitTeme: Vec3f
 
-    @ Range to the Sun, kilometres
+    @ Range to the Sun, kilometers
     sunRangeKm: F64
 
     @ Shadow state
     illumination: IlluminationState
 
-    @ Sun elevation above the orbit plane, RADIANS. Converted to
-    @ degrees only at the telemetry boundary.
+    @ Sun elevation above the orbit plane, RADIANS.
     betaRad: F64
   }
 
-  @ Broadcasts solar geometry. Consumed by power (eclipse and beta
-  @ drive array output and thermal load) and by ADCS.
+  @ Broadcasts solar geometry.
   port SolarStateSend(ref solarState: SolarState)
 
 }
