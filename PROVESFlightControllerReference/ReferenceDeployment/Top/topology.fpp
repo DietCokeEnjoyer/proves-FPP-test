@@ -119,7 +119,14 @@ module ReferenceDeployment {
     instance picoTempManager
 
     # SCALAR Additions
+    # FDIR
     instance faultManager
+
+    # GNC
+    instance orbitPropagator
+    instance solarEphemeris
+    instance magneticFieldModel
+    instance attitudeDetermination
 
   # ----------------------------------------------------------------------
   # Pattern graph specifiers
@@ -287,6 +294,10 @@ module ReferenceDeployment {
       rateGroup1Hz.RateGroupMemberOut[17] -> oldadcs.run
       rateGroup1Hz.RateGroupMemberOut[18] -> thermalManager.run
       rateGroup1Hz.RateGroupMemberOut[19] -> ComCcsdsLora.authenticationRouter.run
+
+      rateGroup1Hz.RateGroupMemberOut[20] -> orbitPropagator.run
+      rateGroup1Hz.RateGroupMemberOut[21] -> magneticFieldModel.run
+      rateGroup10Hz.RateGroupMemberOut[22] -> attitudeDetermination.run
 
     }
 
@@ -505,6 +516,16 @@ module ReferenceDeployment {
 
       faultManager.setModeSafe -> modeManager.forceSafeMode
 
+    }
+
+    connections Gnc {
+      # Magnetic model first: it is the longer consumer, so this
+      # minimises the gap between the two reference vectors.
+      orbitPropagator.orbitOut -> magneticFieldModel.orbitIn
+      orbitPropagator.orbitOut -> solarEphemeris.orbitIn
+
+      solarEphemeris.sunRefOut     -> attitudeDetermination.sunRefIn
+      magneticFieldModel.magRefOut -> attitudeDetermination.magRefIn
     }
 
   }

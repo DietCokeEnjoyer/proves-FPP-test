@@ -73,6 +73,11 @@ module ReferenceDeployment {
     stack size Default.STACK_SIZE \
     priority 13
 
+  instance orbitPropagator: Gnc.Environment.OrbitPropagator base id 0x1007D000 \
+  queue size Default.QUEUE_SIZE \
+  stack size Default.STACK_SIZE \
+  priority 15 # TODO: Review priority assignments
+
   # ----------------------------------------------------------------------
   # Queued component instances
   # ----------------------------------------------------------------------
@@ -248,5 +253,10 @@ module ReferenceDeployment {
   instance fsFormat: Components.FsFormat base id 0x10078000
 
   instance picoTempManager: Drv.PicoTempManager base id 0x10079000
+
+  # GNC passive components
+  instance solarEphemeris: Gnc.Environment.SolarEphemeris base id 0x1007A000
+  instance magneticFieldModel: Gnc.Environment.MagneticFieldModel base id 0x1007B000
+  instance attitudeDetermination: Gnc.Adcs.AttitudeDetermination base id 0x1007C000
 
 }

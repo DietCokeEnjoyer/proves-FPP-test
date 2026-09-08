@@ -12,8 +12,8 @@ register_fprime_module(
     HEADERS
         "${CMAKE_CURRENT_LIST_DIR}/MagneticFieldModel.hpp"
     DEPENDS
-        Gnc_Types
-        Gnc_AstroLib
+        PROVESFlightControllerReference_Gnc_Types
+        PROVESFlightControllerReference_Gnc_AstroLib
 )
 
 # Host-only integration test for the units / frame / time seam.

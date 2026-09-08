@@ -8,6 +8,6 @@ register_fprime_module(
     HEADERS
         "${CMAKE_CURRENT_LIST_DIR}/SolarEphemeris.hpp"
     DEPENDS
-        Gnc_Types
-        Gnc_AstroLib
+        PROVESFlightControllerReference_Gnc_Types
+        PROVESFlightControllerReference_Gnc_AstroLib
 )

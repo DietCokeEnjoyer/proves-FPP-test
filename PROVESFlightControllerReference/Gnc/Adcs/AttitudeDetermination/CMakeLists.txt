@@ -3,7 +3,7 @@
 #
 # Uses the keyword form of register_fprime_module (F Prime v3.4+ / v4.x).
 # Most link dependencies are inferred from the FPP model dependency
-# graph; Gnc_Types is listed explicitly because the component's ports
+# graph; PROVESFlightControllerReference_Gnc_Types is listed explicitly because the component's ports
 # use Gnc.VectorSample, and eigen_embedded because Eigen is not an
 # F Prime module.
 ####
@@ -18,7 +18,7 @@ register_fprime_module(
         "${CMAKE_CURRENT_LIST_DIR}/AttitudeDetermination.hpp"
         "${CMAKE_CURRENT_LIST_DIR}/TriadSolver.hpp"
     DEPENDS
-        Gnc_Types
+        PROVESFlightControllerReference_Gnc_Types
         eigen_embedded
 )
 
