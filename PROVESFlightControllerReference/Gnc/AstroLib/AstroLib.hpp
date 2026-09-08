@@ -154,12 +154,12 @@ JulianDate2 jdFromUnixUtc(double unixSecondsUtc);
 
 /**
  * Collapse a split JD. Only use where a few tens of microseconds of
- * resolution loss is acceptable (e.g. telemetry).
+ * resolution loss is acceptable e.g. telemetry.
  */
 inline double jdFlatten(const JulianDate2& jd) { return jd.day + jd.frac; }
 
 /**
- * Difference in days, computed part-wise to avoid catastrophic cancellation.
+ * Difference in days, computed part-wise.
  */
 inline double jdDiffDays(const JulianDate2& a, const JulianDate2& b) {
     return (a.day - b.day) + (a.frac - b.frac);
@@ -184,11 +184,7 @@ double gmst1982Rad(double tUt1);
  * calendar, leap years handled exactly.
  * 
  * Exists because the WMM's secular-variation terms are a series in
- * decimal year. Computed and returned in DOUBLE: the caller may narrow
- * to float for the WMM call itself (an F32 ULP here is 1.22e-4 years,
- * which costs about 0.005 nT of secular drift -- irrelevant), but the
- * same value must never be used to derive Earth rotation, where 2e-4
- * years is 1.07 hours and 16.1 degrees. Use gmst1982Rad for that.
+ * decimal year.
  * 
  */
 double decimalYearFromJd(double jdUt1);
@@ -201,8 +197,7 @@ double decimalYearFromJd(double jdUt1);
 
 /**
  * Truncated IAU-1980 nutation. Four largest terms only; good to ~1 arcsec,
- * which is two orders of magnitude finer than the Sun model error, so the
- * remaining ~100 terms buy nothing here.
+ * which is two orders of magnitude finer than the Sun model error.
  */
 struct Nutation {
     double dPsi;     //!< Nutation in longitude, rad
@@ -232,7 +227,7 @@ Vec3 modToTod(const Vec3& v, const Nutation& n);
 Vec3 todToTeme(const Vec3& v, const Nutation& n);
 
 /**
- * Convenience: MOD -> TEME in one shot.
+ * MOD -> TEME.
  */
 Vec3 modToTeme(const Vec3& v, const Nutation& n);
 
@@ -294,7 +289,7 @@ Illumination shadowConical(const Vec3& rSatKm, const Vec3& rSunKm);
 bool isSunlitCylindrical(const Vec3& rSatKm, const Vec3& sunUnit);
 
 /**
- * Unit vector from the *spacecraft* to the Sun, including parallax.
+ * Unit vector from the spacecraft to the Sun, including parallax.
  */
 Vec3 sunUnitFromSpacecraft(const Vec3& rSatKm, const Vec3& rSunKm, double& rangeKm);
 
@@ -305,7 +300,7 @@ Vec3 sunUnitFromSpacecraft(const Vec3& rSatKm, const Vec3& rSunKm, double& range
 double betaAngleRad(const Vec3& rKm, const Vec3& vKmS, const Vec3& sunUnit);
 
 /**
- * Nadir unit vector (spacecraft -> Earth centre).
+ * Nadir unit vector (spacecraft -> Earth center).
  */
 inline Vec3 nadirUnit(const Vec3& rKm) { return vunit(vscale(rKm, -1.0)); }
 

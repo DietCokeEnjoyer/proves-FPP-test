@@ -10,19 +10,17 @@ namespace Astro {
 namespace {
 
 /**
- * Shadow-cone geometry, folded into two constants per cone.
+ * Shadow-cone geometry, two constants per cone.
  *
  * Vallado writes the penumbra/umbra vertical extents as
  *     penVert = tan(a_pen) * (R_E/sin(a_pen) + satHoriz)
  *     umbVert = tan(a_umb) * (R_E/sin(a_umb) - satHoriz)
  * The R_E/sin(a) terms are ~1.36e6 km, so evaluating them literally throws
- * away significant digits. Distributing tan() through gives the equivalent
+ * away significant digits. Distributing tan() through gives the equivalent and better conditioned
  *     penVert = R_E/cos(a_pen) + tan(a_pen)*satHoriz
  *     umbVert = R_E/cos(a_umb) - tan(a_umb)*satHoriz
- * which is both better conditioned and cheaper.
  *
- * Dynamically initialized at startup (Zephyr runs .init_array when
- * CONFIG_CPP=y). If you prefer no static ctors, replace with literals.
+ * Dynamically initialized at startup.
  */
 const double kTanAlphaUmb = std::tan(ALPHA_UMB_RAD);
 const double kTanAlphaPen = std::tan(ALPHA_PEN_RAD);
@@ -50,8 +48,7 @@ Vec3 vslerp(const Vec3& a, const Vec3& b, double t) {
     const double omega = std::acos(c);
     /*
      * Below ~0.1 mrad the great-circle arc and the chord differ by less
-     * than 1e-9, so normalized lerp is exact for our purposes and skips
-     * three transcendental calls per cycle.
+     * than 1e-9, so normalized lerp works for our purposes.
      */
     if (omega < 1.0e-4) {
         return vunit(vadd(vscale(a, 1.0 - t), vscale(b, t)));
@@ -70,7 +67,7 @@ Vec3 vslerp(const Vec3& a, const Vec3& b, double t) {
 JulianDate2 jdFromUnixUtc(double unixSecondsUtc) {
     /*
      * Split so that .day carries whole days from the Unix epoch and .frac
-     * carries the sub-day remainder. Keeps ~1 us resolution indefinitely.
+     * carries the sub-day remainder.
      */
     const double days = unixSecondsUtc / SEC_PER_DAY;
     const double whole = std::floor(days);
@@ -133,9 +130,8 @@ double gmst1982Rad(double tUt1) {
 namespace {
 
 /**
- * Julian date at 0h UT of a Gregorian calendar date. Integer-only
- * (Fliegel & Van Flandern), so it is exact for every year we care
- * about and costs no transcendentals.
+ * Julian date at 0h UT of a Gregorian calendar date.
+ * (Fliegel & Van Flandern)
  */
 double jdAtMidnight(long year, int month, int day) {
     const long a  = (14 - month) / 12;
@@ -151,7 +147,7 @@ double jdAtMidnight(long year, int month, int day) {
 }  // namespace
 
 double decimalYearFromJd(double jdUt1) {
-    // Inverse Fliegel & Van Flandern, to recover the calendar year only.
+    // Inverse Fliegel & Van Flandern, to recover the calendar year.
     const long jdn = static_cast<long>(std::floor(jdUt1 + 0.5));
 
     long l = jdn + 68569;
@@ -165,9 +161,7 @@ double decimalYearFromJd(double jdUt1) {
 
     /*
      * Divide by the actual length of THIS year, so 2028 gets 366 days
-     * and the fraction stays continuous across the boundary. No leap
-     * year special case is written anywhere: it falls out of the two
-     * integer JD conversions.
+     * and the fraction stays continuous across the boundary.
      */
     const double jdStart = jdAtMidnight(year, 1, 1);
     const double jdEnd   = jdAtMidnight(year + 1, 1, 1);
@@ -341,10 +335,8 @@ SunState sunLowPrecisionMod(double tUt1, double tTdb) {
  */
 
 Illumination shadowConical(const Vec3& rSatKm, const Vec3& rSunKm) {
-    /*
-     * Sunward hemisphere is always lit; cheap early out that also skips
-     * the sqrt below for roughly half of every orbit.
-     */
+    
+    // Sunward hemisphere is always lit;
     if (vdot(rSatKm, rSunKm) >= 0.0) {
         return Illumination::SUNLIT;
     }
@@ -391,7 +383,7 @@ double betaAngleRad(const Vec3& rKm, const Vec3& vKmS, const Vec3& sunUnit) {
     const Vec3 h = vunit(vcross(rKm, vKmS));
 
     /*
-     * beta = 90deg - angle(h, s). The obvious asin(h.s) form loses ~8 digits
+     * beta = 90deg - angle(h, s). The asin(h.s) form loses ~8 digits
      * near beta = +/-90 because asin has an infinite derivative at 1. The
      * atan2 form is well conditioned across the whole range.
      */

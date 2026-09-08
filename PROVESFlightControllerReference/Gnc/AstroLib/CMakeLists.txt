@@ -1,9 +1,8 @@
 ####
 # Gnc/AstroLib
 #
-# Framework-independent astrodynamics kernel. Registered as an F Prime
-# module so it can be a dependency, but it has ZERO F Prime and ZERO
-# Zephyr includes and builds standalone for host testing.
+# F Prime independent astrodynamics kernel. Registered as an F Prime
+# module so it can be a dependency for F Prime components.
 ####
 register_fprime_module(
     SOURCES
@@ -12,8 +11,7 @@ register_fprime_module(
         "${CMAKE_CURRENT_LIST_DIR}/AstroLib.hpp"
 )
 
-# Host-only truth-data test. 27 checks anchored to published constants
-# and physical events, not to the implementation.
+# build tests
 if (BUILD_TESTING AND NOT CMAKE_CROSSCOMPILING)
     add_executable(astrolib_test
         "${CMAKE_CURRENT_LIST_DIR}/test/AstroLibTest.cpp"

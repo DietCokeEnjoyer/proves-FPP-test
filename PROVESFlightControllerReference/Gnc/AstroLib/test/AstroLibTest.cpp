@@ -1,8 +1,9 @@
 /**
  * \file AstroLibTest.cpp
- * \brief Host-side checks for the astro kernel. No F Prime, no gtest -- plain asserts so it builds anywhere. Port these into register_fprime_ut() / gtest for CI.
+ * \brief Host-side verification of AstroLib's implementation.
+ * 
+ * \details Checks the implementation of AstroLib against published constants.
  *
- * \details   g++ -std=c++11 -O2 -I<repo-root> AstroLib.cpp test/AstroLibTest.cpp -o t
  */
 #include "PROVESFlightControllerReference/Gnc/AstroLib/AstroLib.hpp"
 
@@ -42,7 +43,7 @@ static double declinationDeg(const Vec3& u) {
 int main() {
     /*
      * ----------------------------------------------------------------------------
-     * 1. Julian date. J2000.0 is 2000-01-01T12:00:00 UTC -> JD 2451545.0
+     * Julian date. J2000.0 is 2000-01-01T12:00:00 UTC -> JD 2451545.0
      * ----------------------------------------------------------------------------
      */
     {
@@ -54,8 +55,7 @@ int main() {
 
     /*
      * ----------------------------------------------------------------------------
-     * 2. GMST at J2000.0 is 280.46061837 deg (18h 41m 50.55s). This is the
-     *    canonical published value, so it pins the sidereal time model.
+     * GMST at J2000.0 is 280.46061837 deg (18h 41m 50.55s).
      * ----------------------------------------------------------------------------
      */
     {
@@ -65,7 +65,7 @@ int main() {
 
     /*
      * ----------------------------------------------------------------------------
-     * 3. Obliquity at J2000.0 is 23.4392911 deg.
+     * Obliquity at J2000.0 is 23.4392911 deg.
      * ----------------------------------------------------------------------------
      */
     {
@@ -78,8 +78,7 @@ int main() {
 
     /*
      * ----------------------------------------------------------------------------
-     * 4. Solar declination at the 2026 solstices and equinoxes.
-     *    These are physics, not model output, so they are a real check.
+     * Solar declination at the 2026 solstices and equinoxes.
      * ----------------------------------------------------------------------------
      */
     struct Case { const char* name; int y, mo, d, h, mi; double wantDecDeg, tol; };
@@ -97,7 +96,7 @@ int main() {
 
     /*
      * ----------------------------------------------------------------------------
-     * 5. Earth-Sun range at perihelion / aphelion 2026.
+     * Earth-Sun range at perihelion / aphelion 2026.
      * ----------------------------------------------------------------------------
      */
     {
@@ -111,9 +110,8 @@ int main() {
 
     /*
      * ----------------------------------------------------------------------------
-     * 6. Frame chain must be small and invertible-ish: MOD -> TEME should
-     *    move a vector by less than 30 arcsec, never by degrees. This is
-     *    the check that catches a sign error in the nutation rotation.
+     * Frame rotations should be invertible-ish: MOD -> TEME should
+     * move a vector by less than 30 arcsec.
      * ----------------------------------------------------------------------------
      */
     {
@@ -128,8 +126,8 @@ int main() {
 
     /*
      * ----------------------------------------------------------------------------
-     * 7. Geodetic round trip for a known point: 1000 km above the equator
-     *    at 0 deg longitude.
+     * Geodetic round trip for a known point: 1000 km above the equator
+     * at 0 deg longitude.
      * ----------------------------------------------------------------------------
      */
     {
@@ -147,7 +145,7 @@ int main() {
 
     /*
      * ----------------------------------------------------------------------------
-     * 8. Shadow model. Place the Sun on +x, then probe the anti-sun axis.
+     * Shadow model. Place the Sun on +x, then probe the anti-sun axis.
      * ----------------------------------------------------------------------------
      */
     {
@@ -181,7 +179,7 @@ int main() {
 
     /*
      * ----------------------------------------------------------------------------
-     * 9. Beta angle. Equatorial prograde orbit, Sun on +z -> beta = +90.
+     * Beta angle. Equatorial prograde orbit, Sun on +z -> beta = +90.
      * ----------------------------------------------------------------------------
      */
     {
@@ -193,7 +191,7 @@ int main() {
 
     /*
      * ----------------------------------------------------------------------------
-     * 10. SLERP endpoints and midpoint.
+     * SLERP endpoints and midpoint.
      * ----------------------------------------------------------------------------
      */
     {
