@@ -37,9 +37,9 @@ module Gnc {
   @ Identifies the reference frame a vector is expressed in.
   @
   @ TEME is the system-wide inertial frame because it's what SGP4
-  @ produces and converting it is extra code that can be wrong.
-  @ The Sun model (MOD) and the magnetic model (ECEF) both rotate INTO
-  @ TEME at their own boundary. No downstream conversions / rotations.
+  @ produces.
+  @ The Sun model (MOD) and the magnetic model (ECEF) both rotate into
+  @ TEME at their own boundary.
   @
   enum FrameId: U8 {
     @ Unset. Treated as a fault by consumers.

@@ -3,20 +3,12 @@
 #
 # Solar direction, eclipse state and beta angle.
 #
-# PASSIVE, driven by OrbitState. Everything it does that needs an orbit
-# -- parallax correction, the dual-cone shadow test, the beta angle --
-# needs position AND Sun together, so it sits downstream of the
-# propagator rather than beside it.
+# Passive, driven by OrbitState.
 #
-# IT DOES NOT READ THE CLOCK. jdUt1 and the Fw::Time stamp arrive in
-# OrbitState. The time port below exists solely because F Prime needs
-# one to timestamp events and telemetry. Deriving an epoch from it
-# would reintroduce exactly the skew the split was made to prevent.
+# Doesn't read the clock. Recieves time scales and stamp from OrbitState
 #
-# It still produces a usable Sun vector with NO ORBIT AT ALL: the solar
-# model needs only a clock. That is why OrbitPropagator publishes time
-# and GMST even on the NO_TLE path -- a safe-mode sun search must not
-# depend on having a TLE.
+# Still produces a usable Sun vector with an invalid position, the solar
+# model needs only a clock at minimum.
 # ======================================================================
 
 module Gnc {
@@ -28,12 +20,10 @@ module Environment {
     guarded input port orbitIn: Gnc.OrbitStateSend
 
     @ Sun direction as a plain vector observation, TEME, for the
-    @ attitude chain. Narrow contract on purpose: it lets the TRIAD
-    @ component be tested and stubbed without an orbit propagator.
+    @ attitude chain.
     output port sunRefOut: Gnc.VectorSampleSend
 
-    @ Full solar geometry, for power (array output, eclipse budgeting)
-    @ and thermal.
+    @ Full solar geometry
     output port solarOut: Gnc.SolarStateSend
 
     command recv  port cmdIn
@@ -49,15 +39,13 @@ module Environment {
     param set port prmSetOut
 
     @ Force a full recomputation on the next tick, bypassing the
-    @ interpolation cache. GUARDED, not sync: it writes cache state that
-    @ orbitIn also touches, and on a passive component a sync command
-    @ would run on the dispatcher thread without the component mutex.
+    @ interpolation cache.
     guarded command RESYNC_SUN \
       opcode 0x10
 
     @ Length of a solar interpolation segment, seconds. The Sun moves
-    @ ~1.1e-5 deg/s, so a 60 s segment costs < 0.0001 deg of SLERP error
-    @ while cutting solar model evaluations by ~30x. Set 0 to disable.
+    @ ~1.1e-5 deg/s, so a 60s segment cause <0.0001 deg of SLERP error
+    @ while reducing solar model evaluations by 30x. Set 0 to disable.
     param SUN_SEGMENT_SEC: F64 default 60.0 id 0x00
 
     @ Unit vector toward the Sun, TEME
@@ -95,8 +83,8 @@ module Environment {
       id 0x01 \
       format "Eclipse exit at beta {f} deg"
 
-    @ Running without an orbit: Sun direction is geocentric (within
-    @ 0.0027 deg in LEO) and shadow / beta are unavailable.
+    @ Running without an orbit: 
+    @ Sun direction is geocentric, shadow / beta are unavailable.
     event GeocentricFallback \
       severity warning low \
       id 0x02 \

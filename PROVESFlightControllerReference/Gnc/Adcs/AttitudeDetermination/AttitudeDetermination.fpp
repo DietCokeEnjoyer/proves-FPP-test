@@ -1,66 +1,30 @@
 # ======================================================================
 # AttitudeDetermination.fpp
 #
-# PASSIVE on purpose.
-#
-# The solve is a few dozen floating-point operations -- microseconds on
-# a 150 MHz M33 with a hardware FPU. Making this active would buy a
-# thread and its stack (~2-4 KB of the RP2350's 520 KB SRAM) plus a
-# message queue, to hide latency that does not exist. Instead it runs
-# directly on the rate group thread.
-#
-# The data-input ports are GUARDED rather than sync: sensor components
-# and the model chain call them from their own threads, so the latched
-# state needs a mutex. Guarded ports give exactly that, with no queue
-# and no thread.
-#
-# WHAT CHANGED AND WHY
-# --------------------
-# * The four inputs now take Gnc.VectorSample, the same struct the
-#   ephemeris and the WMM already emit, instead of a private Adcs copy
-#   of the same idea. This is what actually connects the subsystem.
-# * Staleness is measured in MILLISECONDS against the sample timestamp,
-#   with cycle counting kept only as the fallback for a spacecraft that
-#   has booted without a valid clock. The old cycle-only scheme was a
-#   latent showstopper: with the ephemeris at 1 Hz, this component at
-#   10 Hz, and MAX_SAMPLE_AGE_CYCLES defaulting to 5, the reference
-#   vectors were stale on 9 ticks out of 10 and TRIAD would have
-#   produced a solution roughly never.
-# * Body and reference inputs get SEPARATE age limits, because they
-#   legitimately update at different rates -- a magnetometer at 10 Hz
-#   and an orbit propagator at 1 Hz are both healthy.
-# * Every input's frame tag is checked. See TriadStatus.FRAME_MISMATCH.
+# Passive, guarded inputs.
 # ======================================================================
 
 module Gnc {
 module Adcs {
 
-  @ TRIAD deterministic attitude determination from a pair of vector
+  @ TRIAD, deterministic attitude determination from a pair of vector
   @ observations (sun + magnetic field)
   passive component AttitudeDetermination {
 
     # ------------------------------------------------------------------
     # Data ports
-    #
-    # Four inputs, deliberately symmetric. The two BODY vectors come
-    # from hardware; the two REFERENCE vectors come from on-board models
-    # (solar ephemeris and the WMM evaluated at the propagated orbit
-    # position). Keeping the reference vectors as ports rather than
-    # subscribing to OrbitState or SolarState here keeps this
-    # component purely about TRIAD, and lets the models be swapped or
-    # stubbed for test without an orbit propagator in the loop.
     # ------------------------------------------------------------------
 
-    @ Measured sun direction, body frame, from the sun sensor component
+    @ Measured sun direction, body frame, from the sun sensors
     guarded input port sunBodyIn: Gnc.VectorSampleSend
 
     @ Measured magnetic field direction, body frame, from the magnetometer
     guarded input port magBodyIn: Gnc.VectorSampleSend
 
-    @ Modelled sun direction, inertial frame, from SolarEphemeris
+    @ Modeled sun direction, inertial frame, from SolarEphemeris
     guarded input port sunRefIn: Gnc.VectorSampleSend
 
-    @ Modelled magnetic field direction, inertial frame, from
+    @ Modeled magnetic field direction, inertial frame, from
     @ MagneticFieldModel
     guarded input port magRefIn: Gnc.VectorSampleSend
 
@@ -87,34 +51,21 @@ module Adcs {
 
     # ------------------------------------------------------------------
     # Parameters
-    #
-    # Everything tunable is a parameter, not a constant, so the geometry
-    # rejection thresholds can be adjusted on orbit once real sensor
-    # performance is known -- without a software load.
     # ------------------------------------------------------------------
 
     @ Which observation TRIAD satisfies exactly.
     @
-    @ MAG by default, which is the opposite of the usual advice. The
-    @ usual advice assumes a dedicated sun sensor at 0.1-1 deg against
-    @ a magnetometer + model at 2-5 deg. This spacecraft's sun sensor
-    @ is an array of VEML6031 ambient-light photodiodes, one per face;
-    @ a weighted-face-normal sun vector from those is realistically
-    @ 5-15 deg, and degrades further near face boundaries and under
-    @ Earth albedo. The LIS2MDL plus the WMM at the propagated orbit
-    @ position is the better of the two.
+    @ MAG by default.
+    @ Typically the sun vector is used as primary, but we have VEML6031 
+    @ ambient-light photodiodes, not a dedicated sun sensor. A dedicated sun 
+    @ sensor is accurate to about 0.1-1 deg, a weighted-face-normal sun vector 
+    @ from ambient-light photodiodes is accurate to ~5-15 deg. Magnetometer + 
+    @ WMM is about 2-5 deg, so it's probably more accurate in our case.
     @
-    @ TRIAD reproduces the PRIMARY observation exactly and uses the
-    @ secondary only to fix rotation about it, so the primary must be
-    @ the more accurate sensor. Flip this to SUN if you fly a real sun
-    @ sensor, or if magnetometer calibration turns out worse than the
-    @ photodiode array in flight.
     param PRIMARY_VECTOR: PrimaryVector default PrimaryVector.MAG id 0x00
 
     @ The inertial frame the reference vectors must be tagged with.
-    @ TEME, because that is what SGP4 produces and the whole chain was
-    @ built around not converting it. Any producer that disagrees is
-    @ rejected loudly rather than averaged in silently.
+    @ TEME, because it's what SGP4 produces.
     param REFERENCE_FRAME: Gnc.FrameId default Gnc.FrameId.TEME id 0x01
 
     @ Reject a solve if the two observations are separated by less than
@@ -123,28 +74,19 @@ module Adcs {
     param MIN_SEPARATION_DEG: F32 default 5.0 id 0x02
 
     @ Reject if the body-pair separation and reference-pair separation
-    @ disagree by more than this. A rotation preserves angles, so a
-    @ nonzero residual is always a fault somewhere.
+    @ disagree by more than this.
     param MAX_GEOMETRY_ERR_DEG: F32 default 5.0 id 0x03
 
-    @ Discard a BODY (sensor) sample older than this. Sensors are
-    @ expected to run at or above the ADCS rate, so this is tight.
+    @ Discard a body (sensor) sample older than this. Sensors are
+    @ should run at or above the ADCS rate.
     param MAX_BODY_AGE_MS: U32 default 500 id 0x04
 
-    @ Discard a REFERENCE (model) sample older than this. The orbit
-    @ propagator runs at 1 Hz and the underlying quantities move
-    @ slowly -- the Sun by 0.0000042 deg per second, the modelled
-    @ field by well under a degree -- so several seconds of tolerance
-    @ costs almost nothing and prevents a rate mismatch from
-    @ suppressing the solution entirely.
+    @ Discard a reference (model) sample older than this.
     param MAX_REF_AGE_MS: U32 default 3000 id 0x05
 
-    @ Fallback age limit, in rate group cycles, used ONLY when the
+    @ Fallback age limit, in rate group cycles, used only when the
     @ sample timestamp cannot be differenced against the current time
     @ (no valid clock yet, mismatched time base, or a clock step).
-    @ Counting cycles avoids any dependence on time base validity at
-    @ power-on, which is exactly the regime where a coarse sun search
-    @ needs an attitude most.
     param MAX_SAMPLE_AGE_CYCLES: U32 default 20 id 0x06
 
     # ------------------------------------------------------------------
@@ -156,7 +98,7 @@ module Adcs {
       opcode 0x10
 
     @ Run TRIAD against a built-in synthetic case with a known answer.
-    @ Verifies the math, the FPU, and the compiler flags on the target.
+    @ Verifies the math, FPU, and compiler flags on the target.
     sync command SELF_TEST \
       opcode 0x11
 
@@ -174,26 +116,22 @@ module Adcs {
     @ this to predict when geometry will force TRIAD to drop out.
     telemetry SeparationDeg: F32 id 0x02 format "{.2f}" 
 
-    @ Body-vs-reference angle disagreement. Should hover near sensor
-    @ noise; a persistent bias means a calibration or model error.
+    @ Body-vs-reference angle disagreement. Should close to the sensor noise. 
+    @ A persistent bias means indicates calibration or model error.
     telemetry GeometryErrDeg: F32 id 0x03 format "{.3f}" 
 
     @ Count of successful solves
     telemetry SolutionCount: U32 id 0x04
 
-    @ Count of rejected solves. Named for this component: the ground
-    @ flattens the namespace and a bare RejectCount would collide with
-    @ the magnetic field model's.
+    @ Count of rejected solves.
     telemetry SolveRejectCount: U32 id 0x05
 
-    @ Age of the oldest input used in the last attempt, ms. The channel
-    @ to look at when the status is *_UNAVAILABLE: it tells you whether
-    @ a producer stopped or is merely slower than you assumed.
+    @ Age of the oldest input used in the last attempt, ms.
+    @ Look here when the status is *_UNAVAILABLE, tells us if a producer stopped or is slower than expected.
     telemetry OldestInputAgeMs: U32 id 0x06
 
     @ True when staleness is being judged by cycle count because the
-    @ clock is not usable. Expected briefly after boot; if it stays
-    @ true, the time source never came up.
+    @ clock is not usable. Expected briefly after boot.
     telemetry UsingCycleFallback: bool id 0x07
 
     # ------------------------------------------------------------------
@@ -202,7 +140,7 @@ module Adcs {
 
     @ Emitted when TRIAD stops producing solutions
     event SolutionLost(
-                        status: TriadStatus @< reason for the dropout
+                        status: TriadStatus @< reason for stopping
                       ) \
       severity warning high \
       id 0x00 \
@@ -223,8 +161,7 @@ module Adcs {
       format "TRIAD geometry poor: separation {.2f} deg" \
       throttle 5
 
-    @ Measured and modelled geometry disagree -- suspect a sensor,
-    @ a calibration, or the reference model
+    @ Measured and Modeled geometry disagree
     event GeometryMismatch(
                             errorDeg: F32 @< angle residual
                           ) \
@@ -243,9 +180,7 @@ module Adcs {
       format "TRIAD input {} stale ({} ms)" \
       throttle 5
 
-    @ A producer tagged a sample with an unexpected frame. This is a
-    @ wiring or configuration fault, not a transient: it will not clear
-    @ on its own, and until it does the attitude solution is suspended.
+    @ A producer tagged a sample with an unexpected frame.
     event FrameMismatch(
                          name: string size 16   @< which input
                          got: Gnc.FrameId       @< frame received

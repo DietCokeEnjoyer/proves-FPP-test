@@ -1,11 +1,5 @@
 ####
 # Adcs/AttitudeDetermination
-#
-# Uses the keyword form of register_fprime_module (F Prime v3.4+ / v4.x).
-# Most link dependencies are inferred from the FPP model dependency
-# graph; PROVESFlightControllerReference_Gnc_Types is listed explicitly because the component's ports
-# use Gnc.VectorSample, and eigen_embedded because Eigen is not an
-# F Prime module.
 ####
 register_fprime_module(
     SOURCES
@@ -22,9 +16,7 @@ register_fprime_module(
         eigen_embedded
 )
 
-# Pure-math unit test, host builds only. Needs no F Prime, no hardware.
-# NOTE: do NOT inherit EIGEN_NO_DEBUG here -- you want Eigen's asserts
-# active in the test even though flight code compiles them out.
+# Unit tests
 if (BUILD_TESTING AND NOT CMAKE_CROSSCOMPILING)
     add_executable(triad_solver_test
         "${CMAKE_CURRENT_LIST_DIR}/test/TriadSolverTest.cpp"

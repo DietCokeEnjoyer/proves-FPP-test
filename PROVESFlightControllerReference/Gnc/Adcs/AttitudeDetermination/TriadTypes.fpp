@@ -1,31 +1,23 @@
 # ======================================================================
 # TriadTypes.fpp
 #
-# Attitude-domain types. Everything that is NOT attitude-specific --
-# Vec3f, VectorSample, FrameId -- now lives in Gnc/Types/GncTypes.fpp
-# and is shared with the ephemeris and magnetic field models. That is
-# what lets the four producers connect to this component at all.
-#
-# All floating point here is F32 on purpose: the RP2350 Cortex-M33 has
-# a hardware single-precision FPU. TRIAD does not need more -- sensor
-# error dominates by orders of magnitude.
+# Attitude-domain types.
 # ======================================================================
 
 module Gnc {
 module Adcs {
 
   @ Attitude quaternion, stored [x, y, z, w].
-  @ Scalar-LAST, Hamilton convention -- this matches Eigen's
-  @ Quaternionf::coeffs() memory order exactly, so no reordering is
-  @ needed anywhere in the flight code. Identity is [0,0,0,1].
+  @ Scalar-LAST, Hamilton convention. This matches Eigen's 
+  @ Quaternionf::coeffs() memory order, so no reordering is needed. 
+  @ Identity is [0,0,0,1].
   array Quatf = [4] F32 default [0.0, 0.0, 0.0, 1.0] format "{.6f}"
 
-  @ Which observation TRIAD trusts exactly (the "primary" leg)
+  @ Which observation TRIAD trusts exactly. Use the most accurate measurement.
   enum PrimaryVector: U8 {
-    @ Sun sensor is primary (normal daylight case: sun sensors are
-    @ typically 10x more accurate than a magnetometer + WMM model)
+    @ Sun sensor is primary
     SUN = 0
-    @ Magnetometer is primary (only sensible if the sun sensor is degraded)
+    @ Magnetometer is primary
     MAG = 1
   }
 
@@ -33,46 +25,38 @@ module Adcs {
   enum TriadStatus: U8 {
     @ Valid attitude produced
     OK = 0
-    @ Sun observation missing, invalid, or stale (eclipse, saturation)
+    @ Sun observation missing, invalid, or stale.
     SUN_UNAVAILABLE = 1
     @ Magnetic observation missing, invalid, or stale
     MAG_UNAVAILABLE = 2
-    @ A reference (inertial) vector was missing or stale
+    @ A reference vector was missing or stale
     REFERENCE_UNAVAILABLE = 3
-    @ Input vector had ~zero length, NaN, or Inf
+    @ Input vector had zero length, NaN, or Inf
     DEGENERATE_INPUT = 4
-    @ The two body observations are too close to (anti)parallel:
-    @ the cross product that builds the triad is ill-conditioned
+    @ The observed vectors are too close to (anti)parallel
+    @ for TRIAD's cross product computations.
     BODY_COLINEAR = 5
-    @ Same problem in the reference frame
+    @ The reference vectors are too close to (anti)parallel
+    @ for TRIAD's cross product computations.
     REFERENCE_COLINEAR = 6
     @ Angle between the body pair disagrees with the angle between the
-    @ reference pair -> a sensor, a calibration, or the ephemeris is wrong
+    @ reference pair
     GEOMETRY_MISMATCH = 7
     @ Resulting matrix failed the orthonormality / handedness check
     NOT_ORTHONORMAL = 8
-    @ A producer tagged its sample with a frame this component was not
-    @ configured to accept. Body inputs must be BODY; reference inputs
-    @ must match REFERENCE_FRAME. This catches the failure mode that
-    @ used to be invisible: mixing TEME and J2000 reference vectors is
-    @ 0.36 deg of precession error in 2026 and TRIAD cannot detect it
-    @ from the numbers alone (both vectors rotate together, so the
-    @ geometry consistency check still passes).
+    @ A producer tagged its sample with a frame this component doesn't accept
     FRAME_MISMATCH = 9
   }
 
-  @ Result published to the controller / estimator
+  @ The attitude estimate to be broadcast
   struct AttitudeSolution {
     @ Rotation from the reference (inertial) frame to the body frame
     q: Quatf
-    @ Which inertial frame q is referenced to. Carried so the
-    @ controller cannot silently assume the wrong one.
+    @ Which inertial frame q is referenced to.
     refFrame: Gnc.FrameId
-    @ Why the solution is or is not usable
+    @ Why the solution is or isn't usable
     status: TriadStatus
-    @ Timestamp of the OLDEST observation used. A solution is only as
-    @ fresh as its stalest input, and a downstream filter needs to know
-    @ which instant this attitude belongs to.
+    @ Timestamp of the oldest observation used.
     stamp: Fw.Time
     @ True only when status == OK
     valid: bool

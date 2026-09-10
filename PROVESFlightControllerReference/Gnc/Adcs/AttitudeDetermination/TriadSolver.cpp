@@ -12,13 +12,13 @@ namespace Adcs {
 namespace {
 
 /**
- * Normalize with a length + finiteness guard.
- * Returns false for zero-length, NaN, or Inf input. The !(n > min)
- * form (rather than n <= min) is deliberate: it is also false when n
- * is NaN, so a single comparison catches both failure modes.
+ * Normalize a vector.
+ * Returns false for zero-length, NaN, or Inf input. 
+ * !(n > min) catches zero-length and NaN inputs.
  */
 bool safeNormalize(const Eigen::Vector3f& in, float minNorm, Eigen::Vector3f& out) {
     const float n = in.norm();
+
     if (!(n > minNorm) || !std::isfinite(n)) {
         return false;
     }
@@ -27,10 +27,8 @@ bool safeNormalize(const Eigen::Vector3f& in, float minNorm, Eigen::Vector3f& ou
 }
 
 /**
- * Angle between two unit vectors, 0..pi, computed with atan2 rather
- * than acos(dot). acos loses precision badly for near-parallel
- * vectors -- exactly the regime where we need an accurate answer in
- * order to decide whether to reject the solution.
+ * Angle between two unit vectors, radians in [0, pi]. Computed with atan2 
+ * rather than acos(dot) to stay precise with vectors close to parallel.
  */
 float angleBetweenUnit(const Eigen::Vector3f& a, const Eigen::Vector3f& b) {
     return std::atan2(a.cross(b).norm(), a.dot(b));
@@ -38,43 +36,38 @@ float angleBetweenUnit(const Eigen::Vector3f& a, const Eigen::Vector3f& b) {
 
 }  // namespace
 
-TriadResult triadSolve(const TriadObservation& obs,
-                       const TriadConfig& cfg,
-                       TriadSolution& out) {
+TriadResult triadSolve(const TriadObservation& obs, const TriadConfig& cfg, TriadSolution& out) {
     /*
      * ----------------------------------------------------------------------------
-     * STEP 1: Normalize. TRIAD is a direction-only algorithm -- the
-     * magnitudes of the sun vector and the B-field carry no attitude
-     * information, so we discard them immediately. This also rejects
-     * unpopulated (all-zero) and NaN inputs before they can poison the
-     * rest of the computation.
+     * Step 1: Normalize
+     * TRIAD only needs directions, so this is done first. 
+     * Rejects any zero or NaN inputs.
      * ----------------------------------------------------------------------------
      */
     Eigen::Vector3f b1, b2, r1, r2;
-    if (!safeNormalize(obs.primaryBody,   cfg.minVectorNorm, b1) ||
+    if (!safeNormalize(obs.primaryBody, cfg.minVectorNorm, b1) ||
         !safeNormalize(obs.secondaryBody, cfg.minVectorNorm, b2) ||
-        !safeNormalize(obs.primaryRef,    cfg.minVectorNorm, r1) ||
-        !safeNormalize(obs.secondaryRef,  cfg.minVectorNorm, r2)) {
+        !safeNormalize(obs.primaryRef, cfg.minVectorNorm, r1) ||
+        !safeNormalize(obs.secondaryRef, cfg.minVectorNorm, r2)) {
         return TriadResult::DEGENERATE_INPUT;
     }
 
     /*
      * ----------------------------------------------------------------------------
-     * STEP 2: Conditioning check.
+     * Step 2: Conditioning check.
+     * 
+     * TRIAD can't be computed when a pair of vectors approach (anti)parallel.
      *
-     * The second triad axis is (v1 x v2)/|v1 x v2|. For unit vectors
-     * |v1 x v2| == sin(angle). As the pair approaches parallel or
-     * antiparallel that norm goes to zero, the division blows up, and
-     * the rotation about the primary axis becomes unobservable. This is
-     * a real operational case: the sun-Earth-B-field geometry genuinely
-     * lines up over parts of an orbit, and TRIAD must decline rather
-     * than emit a confident garbage answer.
+     * The second triad axis is (v1 x v2)/|v1 x v2|, and for unit vectors
+     * |v1 x v2| == sin(angle). When the pair approaches (anti)parallel,
+     * the norm goes to zero and the division blows up, so the rotation about 
+     * the primary axis becomes unobservable.
      * ----------------------------------------------------------------------------
      */
     const Eigen::Vector3f crossBody = b1.cross(b2);
-    const Eigen::Vector3f crossRef  = r1.cross(r2);
+    const Eigen::Vector3f crossRef = r1.cross(r2);
     const float sinBody = crossBody.norm();
-    const float sinRef  = crossRef.norm();
+    const float sinRef = crossRef.norm();
 
     out.separationRad = angleBetweenUnit(b1, b2);
 
@@ -87,15 +80,11 @@ TriadResult triadSolve(const TriadObservation& obs,
 
     /*
      * ----------------------------------------------------------------------------
-     * STEP 3: Free consistency check.
-     *
-     * A rotation preserves angles. The angle between the two measured
-     * body vectors must therefore equal the angle between the two
-     * modelled reference vectors. TRIAD never uses this fact, which
-     * means it costs nothing to spend it on fault detection instead:
-     * a large residual means a magnetometer that needs recalibration,
-     * a sun sensor seeing Earth albedo, a stale TLE, or swapped axes.
-     * Catching that here is far cheaper than debugging it downstream.
+     * Step 3: Consistency check
+     * 
+     * The angle between the measured body vectors should equal the angle between the
+     * modeled reference vectors, because they are the same angle in different 
+     * frames of reference. If they aren't, there's a sensor or model error.
      * ----------------------------------------------------------------------------
      */
     const float sepRef = angleBetweenUnit(r1, r2);
@@ -106,11 +95,11 @@ TriadResult triadSolve(const TriadObservation& obs,
 
     /*
      * ----------------------------------------------------------------------------
-     * STEP 4: Build the two triads.
+     * Step 4: Build the two triads
      *
      * Each becomes a proper (right-handed, orthonormal) rotation matrix
-     * whose COLUMNS are the triad axes.
-     *   col0 = the primary direction itself
+     * whose columns are the triad axes.
+     *   col0 = the primary direction
      *   col1 = normal to the plane containing both observations
      *   col2 = completes the right-handed set
      * ----------------------------------------------------------------------------
@@ -135,30 +124,21 @@ TriadResult triadSolve(const TriadObservation& obs,
 
     /*
      * ----------------------------------------------------------------------------
-     * STEP 5: The TRIAD solution itself.
+     * Step 5: The TRIAD solution
      *
-     * Both bases describe the SAME physical triad, expressed in two
-     * different frames. The attitude is whatever maps one to the other:
+     * Both bases describe the same physical triad, expressed in two
+     * different frames. The attitude is what maps one to the other:
      *     A * Mr = Mb   ->   A = Mb * Mr^-1 = Mb * Mr^T
-     * The transpose is exact (no inverse is ever computed) because Mr
-     * is orthonormal by construction. That is the whole trick, and it
-     * is why TRIAD is a handful of flops with no iteration.
      * ----------------------------------------------------------------------------
      */
     const Eigen::Matrix3f A = Mb * Mr.transpose();
 
     /*
      * ----------------------------------------------------------------------------
-     * STEP 6: Verify the result is a valid rotation.
-     *
-     * Cheap insurance against accumulated float error, a mis-wired
-     * frame convention, or an FPU/compiler-flag problem on the target.
-     * determinant() is computed by hand as the scalar triple product to
-     * avoid pulling in the Eigen LU module.
+     * Step 6: Check for a valid rotation
      * ----------------------------------------------------------------------------
      */
-    const float orthErr =
-        (A * A.transpose() - Eigen::Matrix3f::Identity()).cwiseAbs().maxCoeff();
+    const float orthErr = (A * A.transpose() - Eigen::Matrix3f::Identity()).cwiseAbs().maxCoeff();
     const float det = A.col(0).dot(A.col(1).cross(A.col(2)));
     if (orthErr > cfg.orthonormalityTol || det < 0.0f) {
         return TriadResult::NOT_ORTHONORMAL;
@@ -166,18 +146,10 @@ TriadResult triadSolve(const TriadObservation& obs,
 
     /*
      * ----------------------------------------------------------------------------
-     * STEP 7: Convert DCM -> quaternion.
-     *
-     * Eigen's matrix-to-quaternion conversion uses the branch-selecting
-     * (Shepperd) method: it picks whichever of the trace or the three
-     * diagonal elements is largest and derives the quaternion from that
-     * branch, avoiding the catastrophic cancellation the naive
-     * sqrt(1 + trace) formula suffers near 180 deg rotations.
+     * Step 7: Convert DCM -> quaternion.
      *
      * Canonicalize to w >= 0 so a given physical attitude always has one
-     * representation (q and -q are the same rotation). The component
-     * layer additionally enforces sign continuity against the previous
-     * published solution, which is what downstream filters care about.
+     * representation (q and -q are the same rotation).
      * ----------------------------------------------------------------------------
      */
     Eigen::Quaternionf q(A);

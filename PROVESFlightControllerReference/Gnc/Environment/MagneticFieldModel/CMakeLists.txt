@@ -1,8 +1,7 @@
 ####
 # Gnc/MagneticFieldModel
 #
-# XYZgeomag is header-only and vendored under lib/, so there is nothing
-# extra to compile or link -- only an include path.
+# XYZgeomag is header-only, only needs an include path.
 ####
 register_fprime_module(
     SOURCES

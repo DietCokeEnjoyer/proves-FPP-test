@@ -2,19 +2,12 @@
  * \file SolarEphemeris.cpp
  * \brief Per-evaluation pipeline, triggered by OrbitState arrival:
  *
- * \details   1. solarDirectionTeme()  jdUt1 -> Sun unit vector, TEME (cached)
- *   2. geometry              + position -> parallax, shadow, beta
- *   3. emit()                -> sunRefOut, solarOut, telemetry
- *
- * Stage 1 needs only a clock. Stage 2 needs an orbit. That split is
- * what lets this component keep producing a usable attitude reference
- * when no TLE has ever been uploaded.
- *
- * NOTE ON TIME: this file contains no call to getTime() outside of
- * framework timestamping. jdUt1 and the observation stamp both arrive
- * in OrbitState. If you find yourself wanting the clock here, the
- * quantity you want almost certainly belongs in OrbitState instead.
+ * \details   
+ *   1. solarDirectionTeme()  jdUt1 -> Sun unit vector, TEME (cached). Needs only a valid clock.
+ *   2. geometry + position -> parallax, shadow, beta. Needs a valid position.
+ *   3. emit() -> sunRefOut, solarOut, telemetry
  */
+
 #include "PROVESFlightControllerReference/Gnc/Environment/SolarEphemeris/SolarEphemeris.hpp"
 
 #include "PROVESFlightControllerReference/Gnc/Types/GncConvert.hpp"
@@ -23,9 +16,14 @@ namespace Gnc {
 namespace Environment {
 
 
+/**
+ * \brief Construct the component with an empty interpolation cache.
+ * \param compName  F Prime component instance name
+ */
 SolarEphemeris::SolarEphemeris(const char* const compName)
     : SolarEphemerisComponentBase(compName) {}
 
+//! Destroy the component. Holds no resources.
 SolarEphemeris::~SolarEphemeris() {}
 
 /*
@@ -34,6 +32,14 @@ SolarEphemeris::~SolarEphemeris() {}
  * ============================================================================
  */
 
+/**
+ * \brief Evaluate the solar model and rotate MOD -> TEME at one instant.
+ *
+ * \param tUt1      Julian centuries of UT1 since J2000
+ * \param tTt       Julian centuries of TT since J2000
+ * \param unitTeme  [out] Geocentric unit vector Earth -> Sun, TEME
+ * \param rangeKm   [out] Earth-Sun distance, km
+ */
 void SolarEphemeris::sunTemeAt(F64 tUt1, F64 tTt, Astro::Vec3& unitTeme, F64& rangeKm) {
     /*
      * Low-precision solar ephemeris. Output is in MOD: mean equator,
@@ -43,9 +49,7 @@ void SolarEphemeris::sunTemeAt(F64 tUt1, F64 tTt, Astro::Vec3& unitTeme, F64& ra
 
     /*
      * Rotate MOD -> TOD -> TEME so the result shares a frame with the
-     * SGP4 output. ~20 arcsec of rotation -- smaller than the solar
-     * model's own 0.01 deg error, so strictly optional, but it costs
-     * one nutation evaluation per segment rather than per tick.
+     * SGP4 output.
      */
     const Astro::Nutation nut = Astro::nutation1980(tTt);
 
@@ -53,19 +57,18 @@ void SolarEphemeris::sunTemeAt(F64 tUt1, F64 tTt, Astro::Vec3& unitTeme, F64& ra
     rangeKm = sun.rangeKm;
 }
 
+/**
+ * \brief Solar direction in TEME, interpolated across a cached segment.
+ *
+ * \param jdUt1    UT1 Julian date, flattened
+ * \param jdTt     TT Julian date, flattened
+ * \param rangeKm  [out] Earth-Sun distance, km
+ * \return Geocentric unit vector Earth -> Sun, TEME
+ */
 Astro::Vec3 SolarEphemeris::solarDirectionTeme(F64 jdUt1, F64 jdTt, F64& rangeKm) {
     /*
      * Reconstruct the centuries-from-J2000 arguments from the flattened
-     * JDs supplied by the propagator. A flattened JD carries ~50 us of
-     * resolution, which is ~5e-10 deg of solar motion -- utterly below
-     * the model error, so nothing is lost by not passing split JDs.
-     *
-     * BOTH scales come from OrbitState. UT1 drives Earth rotation and
-     * the Sun's mean longitude; TT drives the dynamical arguments
-     * (nutation, obliquity, mean anomaly). They differ by ~69 s. This
-     * used to approximate tTt = tUt1 because the split had dropped TT
-     * from the state -- correct to ~0.0008 deg, but silently wrong for
-     * no reason when the propagator had already computed it.
+     * JDs supplied by the propagator.
      */
     const F64 tUt1 = (jdUt1 - Astro::JD_J2000) / Astro::DAYS_PER_JCENT;
     const F64 tTt  = (jdTt  - Astro::JD_J2000) / Astro::DAYS_PER_JCENT;
@@ -99,8 +102,7 @@ Astro::Vec3 SolarEphemeris::solarDirectionTeme(F64 jdUt1, F64 jdTt, F64& rangeKm
 
     /*
      * Great-circle interpolation across the segment. The Sun sweeps
-     * ~0.00066 deg in 60 s, so SLERP error is far below model error
-     * while transcendental cost drops by the segment length.
+     * ~0.00066 deg in 60 s, so SLERP error is far below model error.
      */
     const F64 span = m_sunNextJdUt1 - m_sunPrevJdUt1;
     F64 frac = (span > 0.0) ? ((jdUt1 - m_sunPrevJdUt1) / span) : 0.0;
@@ -117,6 +119,16 @@ Astro::Vec3 SolarEphemeris::solarDirectionTeme(F64 jdUt1, F64 jdTt, F64& rangeKm
  * ============================================================================
  */
 
+/**
+ * \brief Orbit state arrived. Runs one full solar evaluation.
+ *
+ * \details Three outcomes, reported through SolarValidity: NO_TIME when
+ * the clock is unusable, GEOCENTRIC when there is a time but no
+ * position, and VALID when both are available. Every path emits.
+ *
+ * \param portNum  Port index, unused
+ * \param state    Orbit state from OrbitPropagator
+ */
 void SolarEphemeris::orbitIn_handler(FwIndexType portNum, Gnc::OrbitState& state) {
     (void)portNum;
 
@@ -127,31 +139,21 @@ void SolarEphemeris::orbitIn_handler(FwIndexType portNum, Gnc::OrbitState& state
     solar.set_directionUsable(false);
     solar.set_geometryUsable(false);
 
-    /*
-     * Only a bad clock stops us. Everything else still carries a usable
-     * jdUt1 and jdTt, and the solar model needs nothing more.
-     */
+
     if (!state.get_timeUsable()) {
         this->log_WARNING_HI_TimeMissing();
         this->emit(solar, stamp);
         return;
     }
 
-    // ---- Stage 1: Sun direction (needs only a clock) -----------------
+    // Step 1: Sun direction
     F64 sunRangeKm = 0.0;
     const Astro::Vec3 sunUnitGeo =
         this->solarDirectionTeme(state.get_jdUt1(), state.get_jdTt(), sunRangeKm);
     const Astro::Vec3 sunPosTeme = Astro::vscale(sunUnitGeo, sunRangeKm);
 
+    // Geocentric fallback when position is invalid.
     if (!state.get_positionUsable()) {
-        /*
-         * Geocentric fallback. The parallax being skipped is at most
-         * 0.0027 deg in LEO, well under the solar model's own 0.01 deg,
-         * so this stays fully usable for attitude determination.
-         * Shadow and beta genuinely cannot be computed without a
-         * position, so geometryUsable stays false rather than shipping
-         * a guessed number behind a single "valid" flag.
-         */
         this->log_WARNING_LO_GeocentricFallback();
         solar.set_validity(Gnc::SolarValidity::GEOCENTRIC);
         solar.set_directionUsable(true);
@@ -161,22 +163,19 @@ void SolarEphemeris::orbitIn_handler(FwIndexType portNum, Gnc::OrbitState& state
         return;
     }
 
-    // ---- Stage 2: geometry (needs the orbit) -------------------------
+    // Step 2: Geometry
     const Astro::Vec3 posTemeKm = toAstro(state.get_posTemeKm());
     const Astro::Vec3 velTemeKmS = toAstro(state.get_velTemeKmS());
 
-    // Parallax: the Sun vector FROM THE SPACECRAFT.
+    // Parallax: the Sun vector from the spacecraft.
     F64 scSunRangeKm = 0.0;
     const Astro::Vec3 sunUnitSc =
         Astro::sunUnitFromSpacecraft(posTemeKm, sunPosTeme, scSunRangeKm);
 
     const Astro::Illumination illum = Astro::shadowConical(posTemeKm, sunPosTeme);
     const F64 betaRad = Astro::betaAngleRad(posTemeKm, velTemeKmS, sunUnitSc);
-
-    /*
-     * Edge-triggered eclipse events. Level-triggered would flood the
-     * log at 1 Hz; the ground only cares about the transitions.
-     */
+  
+    //Edge-triggered eclipse events.
     if (m_illumSeeded && (illum != m_lastIllum)) {
         const bool wasLit = (m_lastIllum == Astro::Illumination::SUNLIT);
         const bool isLit = (illum == Astro::Illumination::SUNLIT);
@@ -206,24 +205,19 @@ void SolarEphemeris::orbitIn_handler(FwIndexType portNum, Gnc::OrbitState& state
  * ============================================================================
  */
 
+/**
+ * \brief Publish on sunRefOut and solarOut, then write telemetry.
+ *
+ * \param solar  State to publish, valid or not
+ * \param stamp  Epoch of the orbit state
+ */
 void SolarEphemeris::emit(const Gnc::SolarState& solar, const Fw::Time& stamp) {
     if (this->isConnected_sunRefOut_OutputPort(0)) {
         Gnc::VectorSample sample;
         sample.set_vec(solar.get_sunUnitTeme());
         sample.set_frame(Gnc::FrameId::TEME);
-        /*
-         * The ORBIT STATE's epoch, not "now". This component never
-         * reads the clock, so the attitude chain's staleness check
-         * measures the age of the underlying observation.
-         */
         sample.set_stamp(stamp);
 
-        /*
-         * In eclipse the Sun direction is still geometrically correct;
-         * the spacecraft simply cannot MEASURE it. Marking the model
-         * output invalid would be wrong -- that is the sun sensor's
-         * job, and TRIAD already handles a missing body vector.
-         */
         sample.set_valid(solar.get_directionUsable());
         this->sunRefOut_out(0, sample);
     }
@@ -252,6 +246,12 @@ void SolarEphemeris::emit(const Gnc::SolarState& solar, const Fw::Time& stamp) {
  * ============================================================================
  */
 
+/**
+ * \brief Drop the interpolation cache so the next evaluation re-anchors.
+ *
+ * \param opCode  Command opcode
+ * \param cmdSeq  Command sequence number
+ */
 void SolarEphemeris::RESYNC_SUN_cmdHandler(FwOpcodeType opCode, U32 cmdSeq) {
     m_sunSeeded = false;
     this->cmdResponse_out(opCode, cmdSeq, Fw::CmdResponse::OK);
