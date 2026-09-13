@@ -1,22 +1,8 @@
 /**
  * \file MagChainTest.cpp
- * \brief Host test for the MagneticFieldModel <- OrbitPropagator seam. No F Prime and no hardware: it drives the real
- * evaluateField(), so the three things that seam gets wrong when it is wrong are all visible on a workstation in one
- * second.
+ * \brief Test for the MagneticFieldModel <- OrbitPropagator boundary.
  *
- * \details   1. UNITS. XYZgeomag wants ITRS metres; SGP4 produces kilometres.
- *      Getting this backwards puts the evaluation 1000x too close to
- *      the centre of the Earth, where the dipole term blows up.
- *   2. FRAME ROUND TRIP. ECEF -> TEME must undo TEME -> ECEF exactly.
- *   3. TIME PRECISION. GMST from an F32 decimal year vs. from an F64
- *      one. This is the check that fails loudest on the old code.
- *
- * This file used to reimplement the body of the evaluation, which meant
- * it verified a copy of the flight code and would have stayed green
- * across an edit to the original. Now that WmmModel is framework-free
- * the test calls it directly, and what remains here is the PROPAGATOR
- * half of the seam: GMST and the geodetic altitude, which is exactly
- * what OrbitPropagator supplies in OrbitState.
+ * \details 
  *
  * Build:
  *   g++ -std=c++14 -O2 -I<repo-root> -I<repo-root>/PROVESFlightControllerReference
@@ -72,7 +58,7 @@ FieldResult evaluateAt(const Vec3& posTemeKm, double jdUt1, double gmstRad, doub
 
 int main() {
     /*
-     * A representative ISS-like LEO position: 420 km altitude, 51.6 deg
+     * A LEO position: 420 km altitude, 51.6 deg
      * inclination, at an arbitrary point in the orbit.
      */
     const double jd = 2461233.5;  // 2026-07-12 00:00 UT1
@@ -86,7 +72,7 @@ int main() {
 
     /*
      * ----------------------------------------------------------------------------
-     * 1. Units
+     * Units
      * ----------------------------------------------------------------------------
      */
     double altKm = 0.0;
@@ -103,17 +89,6 @@ int main() {
     check("unit vector has unit length", std::fabs(vnorm(sol.unitTeme) - 1.0) < 1.0e-12);
     check("unit vector is parallel to the field", vdot(sol.unitTeme, vunit(sol.fieldTemeNt)) > 1.0 - 1.0e-12);
 
-    /*
-     * The failure mode the old code had: pass km where metres were
-     * expected. The evaluation point ends up ~6800 km from the centre
-     * divided by 1000, i.e. deep inside the Earth, and the r^-3 dipole
-     * term explodes by roughly 10^9.
-     *
-     * The conversion now lives in exactly one place -- the KM_TO_M
-     * multiply in WmmModel.cpp -- so it cannot be got wrong from
-     * outside. This probes the library directly to keep the magnitude
-     * envelope that catches it honest.
-     */
     {
         const Vec3 ecefKm = temeToEcef(posTemeKm, gmst);
         geomag::Vector p;
@@ -129,7 +104,7 @@ int main() {
 
     /*
      * ----------------------------------------------------------------------------
-     * 2. Frame round trip
+     * Frame round trip
      * ----------------------------------------------------------------------------
      */
     {
@@ -160,7 +135,7 @@ int main() {
 
     /*
      * ----------------------------------------------------------------------------
-     * 3. Time precision -- the headline bug
+     * Time precision
      * ----------------------------------------------------------------------------
      */
     {
@@ -190,9 +165,7 @@ int main() {
 
     /*
      * ----------------------------------------------------------------------------
-     * 4. Field direction changes measurably over an orbit -- i.e. the
-     *    model is actually responding to position, not returning a
-     *    constant that happens to be the right size.
+     * Field direction changes measurably over an orbit
      * ----------------------------------------------------------------------------
      */
     {
@@ -209,10 +182,7 @@ int main() {
 
     /*
      * ----------------------------------------------------------------------------
-     * 5. Range gates. These could not be tested before the split,
-     *    because the gate lived inside a component member function that
-     *    emitted an event. Each one is checked from the side that
-     *    should trip it, with the other input held valid.
+     * Range gates. 
      * ----------------------------------------------------------------------------
      */
     {
@@ -224,7 +194,7 @@ int main() {
         const FieldConfig cfg;
         FieldSolution out;
 
-        // Above the WMM's fitted shell: a GTO apogee, not a LEO pass.
+        // Above the WMM's fitted shell
         query.altKm = 20000.0;
         check("altitude above the fitted shell is rejected",
               evaluateField(query, cfg, out) == FieldResult::ALTITUDE_OUT_OF_RANGE);
@@ -234,14 +204,12 @@ int main() {
         check("altitude below the ellipsoid is rejected",
               evaluateField(query, cfg, out) == FieldResult::ALTITUDE_OUT_OF_RANGE);
 
-        // Just inside each bound must still be accepted.
+        // Just inside each bound
         query.altKm = static_cast<double>(cfg.maxAltKm) - 1.0;
         check("altitude just inside the upper bound is accepted", evaluateField(query, cfg, out) == FieldResult::OK);
 
         /*
-         * Epoch outside the coefficient set's window. WMM2025 carries
-         * linear secular terms fitted over 2025-2030; outside that it is
-         * an extrapolation that degrades quickly.
+         * Epoch outside the valid window
          */
         query.altKm = 420.0;
         query.jdUt1 = 2451545.0;  // 2000-01-01

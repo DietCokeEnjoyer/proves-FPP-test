@@ -1,12 +1,9 @@
 ####
 # Gnc/MagneticFieldModel
 #
-# XYZgeomag is header-only, only needs an include path. It is included
-# by WmmModel.cpp and nowhere else, so the component never sees it.
+# WmmModel.* holds the WMM evaluation/math, using the XYZGeomag library.
+# MagneticFieldModel.* is the FPrime wrapper.
 #
-# WmmModel is the framework-free half: the range gates, the TEME/ECEF
-# rotations and the km/m and Tesla/nT conversions. It builds standalone
-# for host testing, exactly like AstroLib and TriadSolver.
 ####
 register_fprime_module(
     SOURCES
@@ -22,13 +19,6 @@ register_fprime_module(
         PROVESFlightControllerReference_Gnc_AstroLib
 )
 
-# Host-only integration test for the units / frame / time seam.
-#
-# WmmModel.cpp is linked in so the test drives the real evaluateField()
-# rather than a copy of it. Two include roots are needed: the repo root,
-# for the PROVESFlightControllerReference/... paths the module uses, and
-# PROVESFlightControllerReference itself, because AstroLib.cpp includes
-# its own header as "Gnc/AstroLib/AstroLib.hpp".
 if (BUILD_TESTING AND NOT CMAKE_CROSSCOMPILING)
     add_executable(magchain_test
         "${CMAKE_CURRENT_LIST_DIR}/test/MagChainTest.cpp"

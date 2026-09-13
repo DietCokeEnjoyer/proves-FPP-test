@@ -2,7 +2,7 @@
  * \file AstroLib.cpp
  * \brief Implementation of the astrodynamics kernel.
  */
-#include "Gnc/AstroLib/AstroLib.hpp"
+#include "PROVESFlightControllerReference/Gnc/AstroLib/AstroLib.hpp"
 
 namespace Gnc {
 namespace Astro {

@@ -1,13 +1,11 @@
 /**
  * \file AstroLib.hpp
- * \brief FPP independent astrodynamics kernel.
+ * \brief F Prime independent astrodynamics kernel.
  * 
- * \details FPP indepndent / pure CPP for ease of testing and debugging.
- * 
+ * \details
  *  Conventions: 
  *      - Distances in km, angles in radians unless suffixed _deg / Au.
  *      - Frames are "of date": MOD / TOD / TEME / ECEF.
- *      - No dynamic allocation, no exceptions, no recursion, no virtuals.
  */
 #ifndef GNC_ASTROLIB_HPP
 #define GNC_ASTROLIB_HPP

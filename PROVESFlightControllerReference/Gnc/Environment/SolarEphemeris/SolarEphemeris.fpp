@@ -19,8 +19,7 @@ module Environment {
     @ Orbit state. Arrival drives one evaluation.
     guarded input port orbitIn: Gnc.OrbitStateSend
 
-    @ Sun direction as a plain vector observation, TEME, for the
-    @ attitude chain.
+    @ Sun direction vector, TEME
     output port sunRefOut: Gnc.VectorSampleSend
 
     @ Full solar geometry
@@ -43,9 +42,8 @@ module Environment {
     guarded command RESYNC_SUN \
       opcode 0x10
 
-    @ Length of a solar interpolation segment, seconds. The Sun moves
-    @ ~1.1e-5 deg/s, so a 60s segment cause <0.0001 deg of SLERP error
-    @ while reducing solar model evaluations by 30x. Set 0 to disable.
+    @ Length of a solar interpolation segment, seconds.  
+    @ Set 0 to disable.
     param SUN_SEGMENT_SEC: F64 default 60.0 id 0x00
 
     @ Unit vector toward the Sun, TEME

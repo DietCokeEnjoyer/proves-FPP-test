@@ -1,8 +1,7 @@
 # ======================================================================
 # MagneticFieldModel.fpp
 #
-# WMM2025 evaluated at the propagated orbit position. 
-# Used as a reference vector for TRIAD.
+# WMM2025 evaluated at the propagated orbit position.
 #
 # Passive. Driven by OrbitPropagator.
 # Rate group used only for telemetry.
@@ -21,7 +20,7 @@ module Environment {
     guarded input port orbitIn: Gnc.OrbitStateSend
 
     @ Magnetic field vector with magnitude, TEME, nT.
-    output port magRefOut: Gnc.VectorSampleSend
+    output port fieldOut: Gnc.VectorSampleSend
 
 
     @ Rate group tick. Telemetry only.

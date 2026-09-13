@@ -15,14 +15,9 @@ namespace Environment {
 /**
  * \brief Framework wrapper around the WMM field model.
  *
- * \details Supplies the magnetic reference vector for TRIAD and the full
- * field vector for the magnetorquer controller. Consumes position,
- * altitude, time and GMST from OrbitState, doesn't recompute them.
- *
- * This file is the FRAMEWORK layer. It owns the orbit gate, caching of
- * the last good field, events, telemetry and fault reporting. It
- * contains no field math -- that all lives in WmmModel.cpp, which
- * knows nothing about F Prime and can be unit tested on a workstation.
+ * \details Produces a reference magnetic field vector.
+ *  Driven by the arrival of OrbitState.
+ *  Framework wrapper, all field calculations live in WmmModel.cpp.
  */
 class MagneticFieldModel final : public MagneticFieldModelComponentBase {
   public:
@@ -47,8 +42,7 @@ class MagneticFieldModel final : public MagneticFieldModelComponentBase {
      *        evaluation.
      *
      * \details Gated on the OrbitState's positionUsable flag, then
-     * handed to evaluateField(). Both failure paths republish the last
-     * good field with valid = false rather than going silent.
+     * handed to evaluateField(). Last valid evaluation publish on an invalid OrbitState.
      *
      * \param portNum  Port index, unused (single port)
      * \param state    Orbit state from OrbitPropagator
@@ -56,12 +50,9 @@ class MagneticFieldModel final : public MagneticFieldModelComponentBase {
     void orbitIn_handler(FwIndexType portNum, Gnc::OrbitState& state) override;
 
     /**
-     * \brief Telemetry heartbeat. Does NOT recompute the field.
+     * \brief Telemetry heartbeat.
      *
-     * \details Runs on the rate group while evaluation runs on the
-     * propagator thread, which is why every input port on this component
-     * is guarded. Reports nothing until at least one field has been
-     * computed.
+     * \details
      *
      * \param portNum  Port index, unused (single port)
      * \param context  Rate group context, unused
@@ -75,17 +66,10 @@ class MagneticFieldModel final : public MagneticFieldModelComponentBase {
      */
 
     /**
-     * \brief Push the result (or an explicit invalid) on both output ports.
+     * \brief Push the field evaluation, or the last good result, tagged as stale.
      *
-     * \details magRefOut carries the unit vector for TRIAD; fieldOut
-     * carries the full vector in nanotesla for the magnetorquer
-     * controller, which needs the magnitude. Both are VectorSample; that
-     * type does not require a unit vector, so no near-identical second
-     * struct exists just to carry a magnitude.
-     *
-     * On the invalid path magRefOut still publishes, carrying a zero
-     * vector flagged invalid, so a stalled producer and a rejected
-     * evaluation do not look the same downstream.
+     * \details The full field vector is pushed to all consumers.
+     * If a consumer needs a unit vector, it needs to normalize it.
      *
      * \param sol    Field to publish. On the invalid path this is the
      *               last good solution.

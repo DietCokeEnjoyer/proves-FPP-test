@@ -2,16 +2,15 @@
  * \file MagneticFieldModel.cpp
  * \brief WMM2025 evaluated at the propagated orbit position.
  *
- * \details This file is the FRAMEWORK layer. It owns the orbit gate,
- * the last-good-field cache, events, telemetry and fault reporting. The
- * evaluation itself -- the altitude and epoch gates, the TEME/ECEF
- * rotations, the km/m and Tesla/nT conversions -- lives in
- * WmmModel.cpp.
- *
+ * \details FPrime layer for the WMM evaluation:
+ * - Handles events, telemetry and fault reporting.
+ * - Holds the last valid WMM field
+ * - Validates incoming OrbitStates before calling the WmmModel
+ * 
  * Per-arrival pipeline:
  *   1. Gate on OrbitState::positionUsable
- *   2. evaluateField()  position + epoch + GMST -> field, TEME nT
- *   3. emit()           unit vector and full vector -> downstream
+ *   2. Pass the position + epoch + GMST to WMM, receive the field vector in nT(TEME): evaluateField()
+ *   3. Publish the reference magnetic field vector: emit()      
  */
 
 #include "PROVESFlightControllerReference/Gnc/Environment/MagneticFieldModel/MagneticFieldModel.hpp"
@@ -45,9 +44,7 @@ MagneticFieldModel::~MagneticFieldModel() {}
 /**
  * \brief Orbit state arrived. Evaluate the field once.
  *
- * \details Both failure paths republish the last good field with
- * valid = false rather than going silent. FieldRestored triggers on
- * the recovery edge only.
+ * \details publishes the last valid field evaluation when the incoming orbit is invalid.
  *
  * \param portNum  Port index, unused
  * \param state    Orbit state from OrbitPropagator
@@ -75,7 +72,6 @@ void MagneticFieldModel::orbitIn_handler(FwIndexType portNum, Gnc::OrbitState& s
     FieldSolution sol;
     const FieldResult result = evaluateField(query, FieldConfig(), sol);
 
-    // Written before the gate in the model, so it's usable either way.
     m_lastDecYear = sol.decYear;
 
     if (result != FieldResult::OK) {
@@ -113,7 +109,7 @@ void MagneticFieldModel::orbitIn_handler(FwIndexType portNum, Gnc::OrbitState& s
  */
 
 /**
- * \brief Publish the direction on magRefOut and the full vector on fieldOut.
+ * \brief Publish the field vector on fieldOut.
  *
  * \param sol    Field to publish, fresh or cached
  * \param valid  Whether this cycle produced a fresh evaluation
@@ -136,7 +132,6 @@ void MagneticFieldModel::emit(const FieldSolution& sol, bool valid, const Fw::Ti
             this->fieldOut_out(p, copy);
         }
     }
-    // Full vector in nanotesla for the magnetorquer controller
 }
 
 /**
