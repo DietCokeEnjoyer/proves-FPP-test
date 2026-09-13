@@ -68,9 +68,22 @@ void Sgp4Propagator::clearTle() {
 bool Sgp4Propagator::hasTle() const {
     return m_tleValid;
 }
-//! NORAD catalog number of the loaded TLE. Meaningless unless hasTle().
-std::uint32_t Sgp4Propagator::satnum() const {
-    return static_cast<std::uint32_t>(m_sat.sat_rec.satnum);
+//! NORAD catalog number of the loaded TLE, as a string. Meaningless unless hasTle().
+void Sgp4Propagator::satnum(char* buf, std::size_t len) const {
+    if (buf == nullptr || len == 0) {
+        return;
+    }
+
+    const std::size_t field = sizeof(m_sat.sat_rec.satnum);
+
+    std::size_t n = (len - 1);
+    
+    if(field < (len - 1)){
+        n = field;
+    }
+
+    (void)std::memcpy(buf, m_sat.sat_rec.satnum, n);
+    buf[n] = '\0';
 }
 
 //! Epoch of the loaded TLE, Julian date. Meaningless unless hasTle().
@@ -138,7 +151,7 @@ bool Sgp4Propagator::propagateFromEpoch(double minsFromEpoch,
  * \return OrbitResult::VALID or STALE on success, otherwise the stage
  *         that stopped the cycle
  */
-OrbitResult solveOrbit(double unixSecondsUtc, const OrbitConfig& cfg, Sgp4Propagator& sat, OrbitResult& out) {
+OrbitResult solveOrbit(double unixSecondsUtc, const OrbitConfig& cfg, Sgp4Propagator& sat, OrbitSolution& out) {
     /*
      * ----------------------------------------------------------------------------
      * Stage 1: time scales.
@@ -170,7 +183,7 @@ OrbitResult solveOrbit(double unixSecondsUtc, const OrbitConfig& cfg, Sgp4Propag
      * ----------------------------------------------------------------------------
      */
     out.tleAgeDays = sat.ageDaysAt(out.ts.jdUt1);
-    out.minsFromEpoch = out.tleAgeDays * Astro::MIN_PER_DAY;
+    out.minsFromEpoch = out.tleAgeDays * Astro::MINUTES_PER_DAY;
 
     if (!sat.propagateFromEpoch(out.minsFromEpoch, out.posTemeKm, out.velTemeKmS, out.sgp4Code)) {
         return OrbitResult::PROP_ERROR;

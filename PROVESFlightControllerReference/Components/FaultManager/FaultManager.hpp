@@ -62,7 +62,7 @@ class FaultManager final : public FaultManagerComponentBase {
     // ----------------------------------------------------------------------
     
     //! Tracks the current fault, defaults to NONE
-    FaultManager_FaultType m_currentFault = FaultManager_FaultType::NONE;
+    FaultType m_currentFault = FaultType::NONE;
     
     //! Debounce counter for entering low voltage fault
     U32 m_lowVoltageCounter = 0;

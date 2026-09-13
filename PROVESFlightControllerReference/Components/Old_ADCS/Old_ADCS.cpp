@@ -13,7 +13,7 @@ namespace Components {
 // Component construction and destruction
 // ----------------------------------------------------------------------
 
-Old_ADCS::Old_ADCS(const char* const compName) : ADCSComponentBase(compName) {}
+Old_ADCS::Old_ADCS(const char* const compName) : Old_ADCSComponentBase(compName) {}
 
 Old_ADCS::~Old_ADCS() {}
 

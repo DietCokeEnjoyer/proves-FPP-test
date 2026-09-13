@@ -132,12 +132,12 @@ int main() {
      */
     {
         double lat, lon, alt;
-        ecefToGeodetic(Vec3 { R_EARTH_KM + 1000.0, 0.0, 0.0 }, lat, lon, alt);
+        ecefToGeodetic(Vec3 { RADIUS_EARTH_KM + 1000.0, 0.0, 0.0 }, lat, lon, alt);
         check("geodetic lat (equator)", lat * RAD2DEG, 0.0, 1e-9);
         check("geodetic alt (equator)", alt, 1000.0, 1e-6);
 
         // North pole: altitude measured from the polar radius.
-        const double b = R_EARTH_KM * (1.0 - F_EARTH);
+        const double b = RADIUS_EARTH_KM * (1.0 - WGS_EARTH_FLATTENING);
         ecefToGeodetic(Vec3 { 0.0, 0.0, b + 500.0 }, lat, lon, alt);
         check("geodetic lat (pole)", std::fabs(lat) * RAD2DEG, 90.0, 1e-6);
         check("geodetic alt (pole)", alt, 500.0, 1e-3);
@@ -152,7 +152,7 @@ int main() {
         const Vec3 sun { AU_KM, 0.0, 0.0 };
 
         // Directly behind Earth at 500 km altitude -> deep umbra.
-        check("umbra flag", static_cast<double>(shadowConical(Vec3 { -(R_EARTH_KM + 500.0), 0.0, 0.0 }, sun)),
+        check("umbra flag", static_cast<double>(shadowConical(Vec3 { -(RADIUS_EARTH_KM + 500.0), 0.0, 0.0 }, sun)),
               static_cast<double>(Illumination::UMBRA), 0.0);
 
         // Same anti-sun distance but well off-axis -> full sun.

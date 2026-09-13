@@ -65,7 +65,7 @@ int main() {
     const double tUt1 = (jd - JD_J2000) / DAYS_PER_JCENT;
     const double gmst = gmst1982Rad(tUt1);
 
-    const double r = R_EARTH_KM + 420.0;
+    const double r = RADIUS_EARTH_KM + 420.0;
     const Vec3 posTemeKm{r * 0.5, r * 0.6, r * std::sqrt(1.0 - 0.25 - 0.36)};
 
     std::printf("Magnetic chain checks (2026-07-12, ~420 km)\n\n");

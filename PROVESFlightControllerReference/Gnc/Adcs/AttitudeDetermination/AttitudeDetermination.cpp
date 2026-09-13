@@ -67,7 +67,7 @@ bool ageMs(const Fw::Time& now, const Fw::Time& then, U32& out) {
     if (now.getTimeBase() != then.getTimeBase()) {
         return false;
     }
-    if (now.getTimeBase() == Fw::TimeBase::TB_NONE) {
+    if (now.getTimeBase() == TimeBase::TB_NONE) {
         return false;
     }
 
@@ -260,21 +260,36 @@ void AttitudeDetermination ::solveAndPublish() {
     const Fw::Time now = this->getTime();
 
     Fw::ParamValid pv = Fw::ParamValid::INVALID;
-
     const U32 rawBodyMs = this->paramGet_MAX_BODY_AGE_MS(pv);
-    const U32 maxBodyMs = (pv == Fw::ParamValid::VALID) ? rawBodyMs : DEFAULT_BODY_AGE_MS;
+    
+    U32 maxBodyMs = DEFAULT_BODY_AGE_MS;
+    if(pv == Fw::ParamValid::VALID){
+        maxBodyMs = rawBodyMs;
+    }
 
     pv = Fw::ParamValid::INVALID;
     const U32 rawRefMs = this->paramGet_MAX_REF_AGE_MS(pv);
-    const U32 maxRefMs = (pv == Fw::ParamValid::VALID) ? rawRefMs : DEFAULT_REF_AGE_MS;
+
+    U32 maxRefMs = DEFAULT_REF_AGE_MS;
+    if(pv == Fw::ParamValid::VALID){
+        maxRefMs = rawRefMs;
+    }
 
     pv = Fw::ParamValid::INVALID;
     const U32 rawCycles = this->paramGet_MAX_SAMPLE_AGE_CYCLES(pv);
-    const U32 maxCycles = (pv == Fw::ParamValid::VALID) ? rawCycles : DEFAULT_AGE_CYCLES;
+
+    U32 maxCycles = DEFAULT_AGE_CYCLES;
+    if(pv == Fw::ParamValid::VALID){
+        maxCycles = rawCycles;
+    }
 
     pv = Fw::ParamValid::INVALID;
     const Gnc::FrameId rawFrame = this->paramGet_REFERENCE_FRAME(pv);
-    const Gnc::FrameId refFrame = (pv == Fw::ParamValid::VALID) ? rawFrame : Gnc::FrameId::TEME;
+
+    Gnc::FrameId refFrame = Gnc::FrameId::TEME;
+    if (pv == Fw::ParamValid::VALID) {
+        refFrame = rawFrame;
+    }
 
     // Frame gate. Wiring or config error.
     const bool framesMatch = this->checkFrame(this->m_sunBody, "sunBody", Gnc::FrameId::BODY) &&

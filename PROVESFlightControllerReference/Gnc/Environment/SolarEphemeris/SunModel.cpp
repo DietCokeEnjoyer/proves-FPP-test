@@ -58,7 +58,7 @@ Astro::Vec3 solarDirectionTeme(double jdUt1,
         return u;
     }
 
-    const double segmentDays = cfg.segmentSec / Astro::SEC_PER_DAY;
+    const double segmentDays = cfg.segmentSec / Astro::SECONDS_PER_DAY;
 
     /*
      * Re-anchor if we have no segment, if the clock stepped backwards,

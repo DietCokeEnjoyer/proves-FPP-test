@@ -27,7 +27,7 @@ module Environment {
     @ to, on this component's thread. Connected to the magnetic field model
     @ and the solar ephemeris so both evaluate with the same position and epoch
     @ from this component.
-    output port orbitOut: Gnc.OrbitStateSend
+    output port orbitOut: [2] Gnc.OrbitStateSend
 
     # ------------------------------------------------------------------
     # Standard framework ports
@@ -116,7 +116,7 @@ module Environment {
 
     @ TLE parsed and the propagator initialized successfully
     event TleAccepted(
-                       satnum: U32  @< NORAD catalog number
+                       satnum: string size 8  @< NORAD catalog number
                        epochJd: F64 @< TLE epoch, Julian date
                      ) \
       severity activity high \

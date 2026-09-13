@@ -4,6 +4,11 @@
  */
 #include "PROVESFlightControllerReference/Gnc/Environment/MagneticFieldModel/WmmModel.hpp"
 
+// Constant used by XYZGeomag.
+#ifndef M_PI
+#define M_PI 3.14159265358979323846
+#endif
+
 #include "lib/XYZgeomag.hpp"
 
 namespace Gnc {

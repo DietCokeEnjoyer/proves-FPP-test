@@ -33,14 +33,14 @@ constexpr double ARCSEC2RAD = DEG2RAD / 3600.0;  //!< Arcseconds -> radians
 
 constexpr double JD_J2000      = 2451545.0;   //!< JD of 2000-01-01T12:00:00 TT
 constexpr double JD_UNIX_EPOCH = 2440587.5;   //!< JD of 1970-01-01T00:00:00
-constexpr double SEC_PER_DAY   = 86400.0;     //!< SI seconds in a civil day
-constexpr double MIN_PER_DAY   = 1440.0;      //!< Minutes in a civil day
+constexpr double SECONDS_PER_DAY   = 86400.0;     //!< SI seconds in a civil day
+constexpr double MINUTES_PER_DAY   = 1440.0;      //!< Minutes in a civil day
 constexpr double DAYS_PER_JCENT = 36525.0;    //!< Days in a Julian century
 
 constexpr double AU_KM      = 149597870.7;        //!< IAU 2012 astronomical unit
-constexpr double R_EARTH_KM = 6378.137;           //!< WGS-84 equatorial radius
-constexpr double F_EARTH    = 1.0 / 298.257223563;//!< WGS-84 flattening
-constexpr double R_SUN_KM   = 696000.0;           //!< Solar radius (Vallado)
+constexpr double RADIUS_EARTH_KM = 6378.137;           //!< WGS-84 equatorial radius
+constexpr double WGS_EARTH_FLATTENING = 1.0 / 298.257223563;//!< WGS-84 flattening
+constexpr double RADIUS_SUN_KM   = 696000.0;           //!< Solar radius (Vallado)
 
 //! TT - TAI, fixed by definition.
 constexpr double TT_MINUS_TAI_SEC = 32.184;

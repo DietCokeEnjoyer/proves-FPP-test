@@ -119,8 +119,25 @@ class Sgp4Propagator {
     //! Whether a successfully parsed TLE is loaded.
     bool hasTle() const;
 
-    //! NORAD catalog number of the loaded TLE. Meaningless unless hasTle().
-    std::uint32_t satnum() const;
+    /*
+     * Buffer size satnum() needs, including the NUL terminator. An enum
+     * rather than a constexpr member so it needs no out-of-line
+     * definition under C++14 when passed to sizeof.
+     */
+    enum { SATNUM_BUF_LEN = 8 };
+
+    /**
+     * \brief Copy the loaded TLE's catalog number out as text.
+     *
+     * \details Vallado stores satnum as a fixed-width character field so
+     * it can carry alpha-5 designators (A0000 is 100000), which means it's
+     * neither an integer nor guaranteed NUL terminated. Terminated
+     * here, in the caller's buffer.
+     *
+     * \param buf  [out] Destination, NUL terminated on return
+     * \param len  Size of buf, at least SATNUM_BUF_LEN
+     */
+    void satnum(char* buf, std::size_t len) const;
 
     //! Epoch of the loaded TLE, Julian date. Meaningless unless hasTle().
     double epochJd() const;

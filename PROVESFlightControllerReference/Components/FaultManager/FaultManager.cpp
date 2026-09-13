@@ -45,7 +45,7 @@ void FaultManager ::run_handler(FwIndexType portNum, U32 context) {
             
             if (this->m_lowVoltageCounter >= debounceSeconds) {
                 // Trigger Fault!
-                this->m_currentFault = FaultManager_FaultType::LOW_BATTERY;
+                this->m_currentFault = FaultType::LOW_BATTERY;
                 this->setModeSafe_out(0, Components::SafeModeReason::LOW_BATTERY);
                 this->log_WARNING_HI_FaultDetected(this->m_currentFault, voltageValid ? voltage : 0.0f);
                 
@@ -57,14 +57,14 @@ void FaultManager ::run_handler(FwIndexType portNum, U32 context) {
     }
     // In SAFE, try to recover
     else if (currentMode == Components::SystemMode::SAFE_MODE && 
-             this->m_currentFault == FaultManager_FaultType::LOW_BATTERY) {
+             this->m_currentFault == FaultType::LOW_BATTERY) {
         
         if (voltageValid && voltage > recoveryVoltage) {
             this->m_recoveryCounter++;
             
             if (this->m_recoveryCounter >= debounceSeconds) {
                 // Recover!
-                this->m_currentFault = FaultManager_FaultType::NONE;
+                this->m_currentFault = FaultType::NONE;
                 this->setModeNormal_out(0);
                 this->log_ACTIVITY_HI_FaultRecovered(this->m_currentFault, voltage);
                 
@@ -87,7 +87,7 @@ void FaultManager ::run_handler(FwIndexType portNum, U32 context) {
 
 void FaultManager ::CLEAR_FAULT_cmdHandler(FwOpcodeType opCode, U32 cmdSeq) {
     // Clear state variables
-    this->m_currentFault = FaultManager_FaultType::NONE;
+    this->m_currentFault = FaultType::NONE;
     this->m_lowVoltageCounter = 0;
     this->m_recoveryCounter = 0;
     

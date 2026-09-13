@@ -519,13 +519,11 @@ module ReferenceDeployment {
     }
 
     connections Gnc {
-      # Magnetic model first: it is the longer consumer, so this
-      # minimises the gap between the two reference vectors.
-      orbitPropagator.orbitOut -> magneticFieldModel.orbitIn
-      orbitPropagator.orbitOut -> solarEphemeris.orbitIn
+      orbitPropagator.orbitOut[0] -> magneticFieldModel.orbitIn
+      orbitPropagator.orbitOut[1] -> solarEphemeris.orbitIn
 
       solarEphemeris.sunRefOut     -> attitudeDetermination.sunRefIn
-      magneticFieldModel.magRefOut -> attitudeDetermination.magRefIn
+      magneticFieldModel.fieldOut -> attitudeDetermination.magRefIn
     }
 
   }

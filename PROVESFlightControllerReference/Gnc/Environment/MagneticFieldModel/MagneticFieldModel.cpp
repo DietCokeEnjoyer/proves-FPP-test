@@ -78,7 +78,7 @@ void MagneticFieldModel::orbitIn_handler(FwIndexType portNum, Gnc::OrbitState& s
 
         // Corrupt field evaluation
         if(result == FieldResult::DEGENERATE_FIELD){
-            this.log_WARNING_HI_FieldDegenerate(sol.magnitudeNt);
+            this->log_WARNING_HI_FieldDegenerate(static_cast<F32>(sol.magnitudeNt));
         }
         // Out of range altitude or decimal year
         else{ 
@@ -124,9 +124,9 @@ void MagneticFieldModel::emit(const FieldSolution& sol, bool valid, const Fw::Ti
     sample.set_valid(valid);
 
     // Push the sample to all connected ports
-    int ports = getNum_fieldOut_OutputPorts();
+    const FwIndexType ports = getNum_fieldOut_OutputPorts();
 
-    for (int p = 0; p < ports; ++p) {
+    for (FwIndexType p = 0; p < ports; ++p) {
         if (this->isConnected_fieldOut_OutputPort(p)) {
             Gnc::VectorSample copy = sample;
             this->fieldOut_out(p, copy);

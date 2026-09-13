@@ -132,12 +132,12 @@ void OrbitPropagator::run_handler(FwIndexType portNum, U32 context) {
  */
 bool OrbitPropagator::acquireTime(Fw::Time& stamp, F64& unixSeconds) {
     stamp = this->getTime();
-
+    const TimeBase::T base = stamp.getTimeBase();
     /*
      * Must be wall-clock time, not uptime.
-     * RtcManager sets the timebase to TB_WORKSTATION_TIME when time is successfully acquired from the RTC.
+     * Timebase is TB_WORKSTATION_TIME when time is successfully acquired from the RTC.
      */
-    if (stamp.getTimeBase() != Fw::TimeBase::TB_WORKSTATION_TIME) {
+    if (base != TimeBase::TB_WORKSTATION_TIME && base != TimeBase::TB_SC_TIME) {
         this->log_WARNING_HI_TimeMissing();
         return false;
     }
@@ -252,11 +252,15 @@ void OrbitPropagator::publish(const Gnc::OrbitState& state) {
  * \param state  Orbit state to broadcast
  */
 void OrbitPropagator::emit(const Gnc::OrbitState& state) {
-    if (!this->isConnected_orbitOut_OutputPort(0)) {
-        return;
+    
+    const FwIndexType ports = getNum_orbitOut_OutputPorts();
+
+    for (FwIndexType p = 0; p < ports; ++p) {
+        if (this->isConnected_orbitOut_OutputPort(p)) {
+            Gnc::OrbitState copy = state;
+            this->orbitOut_out(p, copy);
+        }
     }
-    Gnc::OrbitState copy = state;
-    this->orbitOut_out(0, copy);
 }
 
 /**
@@ -308,7 +312,12 @@ void OrbitPropagator::LOAD_TLE_cmdHandler(FwOpcodeType opCode,
         return;
     }
 
-    this->log_ACTIVITY_HI_TleAccepted(m_sgp4.satnum(), m_sgp4.epochJd());
+    char satnum[Sgp4Propagator::SATNUM_BUF_LEN];
+    m_sgp4.satnum(satnum, sizeof satnum);
+
+    const Fw::String satnumArg(satnum);
+    this->log_ACTIVITY_HI_TleAccepted(satnumArg, m_sgp4.epochJd());
+    
     this->cmdResponse_out(opCode, cmdSeq, Fw::CmdResponse::OK);
 }
 

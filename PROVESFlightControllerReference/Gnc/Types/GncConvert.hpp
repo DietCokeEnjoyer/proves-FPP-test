@@ -10,7 +10,11 @@
 #define Gnc_Types_GncConvert_HPP
 
 #include "PROVESFlightControllerReference/Gnc/AstroLib/AstroLib.hpp"
-#include "PROVESFlightControllerReference/Gnc/Types/GncTypes.fpp"
+
+#include "PROVESFlightControllerReference/Gnc/Types/Vec3dSerializableAc.hpp"
+#include "PROVESFlightControllerReference/Gnc/Types/Vec3fSerializableAc.hpp"
+#include "PROVESFlightControllerReference/Gnc/Types/IlluminationStateEnumAc.hpp"
+
 
 namespace Gnc {
 

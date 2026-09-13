@@ -24,8 +24,8 @@ namespace {
  */
 const double kTanAlphaUmb = std::tan(ALPHA_UMB_RAD);
 const double kTanAlphaPen = std::tan(ALPHA_PEN_RAD);
-const double kSecRUmbKm   = R_EARTH_KM / std::cos(ALPHA_UMB_RAD);
-const double kSecRPenKm   = R_EARTH_KM / std::cos(ALPHA_PEN_RAD);
+const double kSecRUmbKm   = RADIUS_EARTH_KM / std::cos(ALPHA_UMB_RAD);
+const double kSecRPenKm   = RADIUS_EARTH_KM / std::cos(ALPHA_PEN_RAD);
 
 }  // namespace
 
@@ -69,7 +69,7 @@ JulianDate2 jdFromUnixUtc(double unixSecondsUtc) {
      * Split so that .day carries whole days from the Unix epoch and .frac
      * carries the sub-day remainder.
      */
-    const double days = unixSecondsUtc / SEC_PER_DAY;
+    const double days = unixSecondsUtc / SECONDS_PER_DAY;
     const double whole = std::floor(days);
     JulianDate2 jd;
     jd.day  = JD_UNIX_EPOCH + whole;
@@ -87,13 +87,13 @@ TimeScales computeTimeScales(double unixSecondsUtc, double dut1Sec, double taiMi
      * mean longitude.
      */
     ts.jdUt1      = ts.jdUtc;
-    ts.jdUt1.frac = ts.jdUtc.frac + dut1Sec / SEC_PER_DAY;
+    ts.jdUt1.frac = ts.jdUtc.frac + dut1Sec / SECONDS_PER_DAY;
 
     /*
      * TT = TAI + 32.184 = UTC + (TAI-UTC) + 32.184. Drives the dynamical
      * arguments: nutation, obliquity, the Sun's mean anomaly.
      */
-    const double ttOffsetDays = (taiMinusUtcSec + TT_MINUS_TAI_SEC) / SEC_PER_DAY;
+    const double ttOffsetDays = (taiMinusUtcSec + TT_MINUS_TAI_SEC) / SECONDS_PER_DAY;
 
     /*
      * Compute centuries part-wise so the 2.4e6 day offset is subtracted
@@ -114,7 +114,7 @@ double gmst1982Rad(double tUt1) {
      * the 1e-4 s terms fall off the bottom of the mantissa.
      */
     double gmstSec = 67310.54841
-                   + std::fmod(3155760000.0 * tUt1, SEC_PER_DAY)
+                   + std::fmod(3155760000.0 * tUt1, SECONDS_PER_DAY)
                    + 8640184.812866 * tUt1
                    + 0.093104 * t2
                    - 6.2e-6 * t2 * tUt1;
@@ -252,8 +252,8 @@ Vec3 temeToEcef(const Vec3& v, double gmstRad) {
 }
 
 void ecefToGeodetic(const Vec3& r, double& latRad, double& lonRad, double& altKm) {
-    const double a   = R_EARTH_KM;
-    const double f   = F_EARTH;
+    const double a   = RADIUS_EARTH_KM;
+    const double f   = WGS_EARTH_FLATTENING;
     const double b   = a * (1.0 - f);
     const double e2  = f * (2.0 - f);
     const double ep2 = e2 / (1.0 - e2);
@@ -370,7 +370,7 @@ bool isSunlitCylindrical(const Vec3& rSatKm, const Vec3& sunUnit) {
         return true;
     }
     const double perp2 = vdot(rSatKm, rSatKm) - along * along;
-    return perp2 > (R_EARTH_KM * R_EARTH_KM);
+    return perp2 > (RADIUS_EARTH_KM * RADIUS_EARTH_KM);
 }
 
 Vec3 sunUnitFromSpacecraft(const Vec3& rSatKm, const Vec3& rSunKm, double& rangeKm) {
