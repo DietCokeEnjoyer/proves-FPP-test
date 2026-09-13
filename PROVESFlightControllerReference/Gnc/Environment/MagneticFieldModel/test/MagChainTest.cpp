@@ -1,6 +1,8 @@
 /**
  * \file MagChainTest.cpp
- * \brief Host test for the MagneticFieldModel <- OrbitPropagator seam. No F Prime and no hardware: it reproduces exactly what evaluate() does, so the three things that seam gets wrong when it is wrong are all visible on a workstation in one second.
+ * \brief Host test for the MagneticFieldModel <- OrbitPropagator seam. No F Prime and no hardware: it drives the real
+ * evaluateField(), so the three things that seam gets wrong when it is wrong are all visible on a workstation in one
+ * second.
  *
  * \details   1. UNITS. XYZgeomag wants ITRS metres; SGP4 produces kilometres.
  *      Getting this backwards puts the evaluation 1000x too close to
@@ -9,18 +11,30 @@
  *   3. TIME PRECISION. GMST from an F32 decimal year vs. from an F64
  *      one. This is the check that fails loudest on the old code.
  *
+ * This file used to reimplement the body of the evaluation, which meant
+ * it verified a copy of the flight code and would have stayed green
+ * across an edit to the original. Now that WmmModel is framework-free
+ * the test calls it directly, and what remains here is the PROPAGATOR
+ * half of the seam: GMST and the geodetic altitude, which is exactly
+ * what OrbitPropagator supplies in OrbitState.
+ *
  * Build:
- *   g++ -std=c++11 -O2 -I. -IGnc/AstroLib Gnc/AstroLib/AstroLib.cpp
- *       Gnc/Environment/MagneticFieldModel/test/MagChainTest.cpp -o magchaintest
+ *   g++ -std=c++14 -O2 -I<repo-root> -I<repo-root>/PROVESFlightControllerReference
+ *       PROVESFlightControllerReference/Gnc/AstroLib/AstroLib.cpp
+ *       PROVESFlightControllerReference/Gnc/Environment/MagneticFieldModel/WmmModel.cpp
+ *       PROVESFlightControllerReference/Gnc/Environment/MagneticFieldModel/test/MagChainTest.cpp
+ *       -o magchaintest
  */
 
-#include "AstroLib.hpp"
+#include "PROVESFlightControllerReference/Gnc/Environment/MagneticFieldModel/WmmModel.hpp"
+
 #include "../lib/XYZgeomag.hpp"
 
 #include <cmath>
 #include <cstdio>
 
 using namespace Gnc::Astro;
+using namespace Gnc::Environment;
 
 namespace {
 
@@ -33,26 +47,25 @@ void check(const char* what, bool ok, const char* detail = "") {
     }
 }
 
-//! Exactly the flight-path computation in MagneticFieldModel::evaluate.
-Vec3 fieldTemeNt(const Vec3& posTemeKm, double jdUt1, double gmstRad, double& altKmOut) {
+/**
+ * Stand in for OrbitPropagator: derive the geodetic altitude the
+ * component would have carried in OrbitState, then run the real
+ * evaluation on it.
+ */
+FieldResult evaluateAt(const Vec3& posTemeKm, double jdUt1, double gmstRad, double& altKmOut, FieldSolution& out) {
     const Vec3 ecefKm = temeToEcef(posTemeKm, gmstRad);
 
     double lat = 0.0;
     double lon = 0.0;
     ecefToGeodetic(ecefKm, lat, lon, altKmOut);
 
-    geomag::Vector p;
-    p.x = static_cast<float>(ecefKm.x * 1000.0);   // km -> m
-    p.y = static_cast<float>(ecefKm.y * 1000.0);
-    p.z = static_cast<float>(ecefKm.z * 1000.0);
+    FieldQuery query;
+    query.posTemeKm = posTemeKm;
+    query.altKm = altKmOut;
+    query.jdUt1 = jdUt1;
+    query.gmstRad = gmstRad;
 
-    const float decYear = static_cast<float>(decimalYearFromJd(jdUt1));
-    const geomag::Vector bT = geomag::GeoMag(decYear, p, geomag::WMM2025);
-
-    const Vec3 bTesla { bT.x, bT.y, bT.z };
-    const Vec3 bTeme = rot3(bTesla, -gmstRad);
-
-    return vscale(bTeme, 1.0e9);   // Tesla -> nT
+    return evaluateField(query, FieldConfig(), out);
 }
 
 }  // namespace
@@ -62,12 +75,12 @@ int main() {
      * A representative ISS-like LEO position: 420 km altitude, 51.6 deg
      * inclination, at an arbitrary point in the orbit.
      */
-    const double jd = 2461233.5;                 // 2026-07-12 00:00 UT1
+    const double jd = 2461233.5;  // 2026-07-12 00:00 UT1
     const double tUt1 = (jd - JD_J2000) / DAYS_PER_JCENT;
     const double gmst = gmst1982Rad(tUt1);
 
     const double r = R_EARTH_KM + 420.0;
-    const Vec3 posTemeKm { r * 0.5, r * 0.6, r * std::sqrt(1.0 - 0.25 - 0.36) };
+    const Vec3 posTemeKm{r * 0.5, r * 0.6, r * std::sqrt(1.0 - 0.25 - 0.36)};
 
     std::printf("Magnetic chain checks (2026-07-12, ~420 km)\n\n");
 
@@ -77,35 +90,41 @@ int main() {
      * ----------------------------------------------------------------------------
      */
     double altKm = 0.0;
-    const Vec3 bNt = fieldTemeNt(posTemeKm, jd, gmst, altKm);
-    const double mag = vnorm(bNt);
+    FieldSolution sol;
+    const FieldResult result = evaluateAt(posTemeKm, jd, gmst, altKm, sol);
 
     std::printf("  evaluated altitude: %.2f km\n", altKm);
-    std::printf("  |B| = %.1f nT\n\n", mag);
+    std::printf("  |B| = %.1f nT\n\n", sol.magnitudeNt);
 
-    check("geodetic altitude is plausible for LEO",
-          altKm > 300.0 && altKm < 500.0);
-    check("|B| within the LEO envelope (18000-60000 nT)",
-          mag > 18000.0 && mag < 60000.0);
+    check("evaluation accepted", result == FieldResult::OK);
+    check("geodetic altitude is plausible for LEO", altKm > 300.0 && altKm < 500.0);
+    check("|B| within the LEO envelope (18000-60000 nT)", sol.magnitudeNt > 18000.0 && sol.magnitudeNt < 60000.0);
+    check("direction is usable at this field strength", sol.directionUsable);
+    check("unit vector has unit length", std::fabs(vnorm(sol.unitTeme) - 1.0) < 1.0e-12);
+    check("unit vector is parallel to the field", vdot(sol.unitTeme, vunit(sol.fieldTemeNt)) > 1.0 - 1.0e-12);
 
     /*
      * The failure mode the old code had: pass km where metres were
      * expected. The evaluation point ends up ~6800 km from the centre
      * divided by 1000, i.e. deep inside the Earth, and the r^-3 dipole
      * term explodes by roughly 10^9.
+     *
+     * The conversion now lives in exactly one place -- the KM_TO_M
+     * multiply in WmmModel.cpp -- so it cannot be got wrong from
+     * outside. This probes the library directly to keep the magnitude
+     * envelope that catches it honest.
      */
     {
+        const Vec3 ecefKm = temeToEcef(posTemeKm, gmst);
         geomag::Vector p;
-        p.x = static_cast<float>(temeToEcef(posTemeKm, gmst).x);   // km, NOT m
-        p.y = static_cast<float>(temeToEcef(posTemeKm, gmst).y);
-        p.z = static_cast<float>(temeToEcef(posTemeKm, gmst).z);
+        p.x = static_cast<float>(ecefKm.x);  // km, NOT m
+        p.y = static_cast<float>(ecefKm.y);
+        p.z = static_cast<float>(ecefKm.z);
         const geomag::Vector bad = geomag::GeoMag(2026.53f, p, geomag::WMM2025);
-        const double badMag = std::sqrt(double(bad.x) * bad.x +
-                                        double(bad.y) * bad.y +
-                                        double(bad.z) * bad.z) * 1.0e9;
+        const double badMag =
+            std::sqrt(double(bad.x) * bad.x + double(bad.y) * bad.y + double(bad.z) * bad.z) * TESLA_TO_NT;
         std::printf("  (km fed where metres expected: |B| = %.3e nT)\n", badMag);
-        check("km-for-metres is caught by the magnitude envelope",
-              !(badMag > 18000.0 && badMag < 60000.0));
+        check("km-for-metres is caught by the magnitude envelope", !(badMag > 18000.0 && badMag < 60000.0));
     }
 
     /*
@@ -129,16 +148,14 @@ int main() {
      */
     {
         double a = 0.0;
-        double b = 0.0;
-        const double m1 = vnorm(fieldTemeNt(posTemeKm, jd, gmst, a));
-        const double m2 = vnorm(fieldTemeNt(posTemeKm, jd, gmst + 1.0, b));
+        FieldSolution shifted;
+        (void)evaluateAt(posTemeKm, jd, gmst + 1.0, a, shifted);
         /*
          * Different GMST means a different ECEF point, hence a different
          * field -- but both must still be plausible LEO magnitudes.
          */
         check("|B| stays in envelope under a different GMST",
-              m2 > 18000.0 && m2 < 60000.0);
-        (void)m1;
+              shifted.magnitudeNt > 18000.0 && shifted.magnitudeNt < 60000.0);
     }
 
     /*
@@ -151,14 +168,6 @@ int main() {
         const float decYearF32 = static_cast<float>(decYearExact);
         const double quantErrYears = std::fabs(double(decYearF32) - decYearExact);
 
-        /*
-         * Reconstruct what the old component did: derive Earth rotation
-         * from the F32 decimal year rather than from a proper JD.
-         */
-        const double daysFromF32 =
-            (double(decYearF32) - 2026.0) * 365.0 + (jd - 2461041.5) * 0.0;
-        (void)daysFromF32;
-
         // The direct statement of the problem: one ULP of F32 at 2026.
         const float oneUlp = std::nextafter(2026.5f, 3000.0f) - 2026.5f;
         const double ulpHours = double(oneUlp) * 365.25 * 24.0;
@@ -168,10 +177,15 @@ int main() {
                     double(oneUlp), ulpHours, ulpDeg);
         std::printf("  F32 rounding of this epoch: %.2e yr\n\n", quantErrYears);
 
-        check("F32 decimal year is UNUSABLE for Earth rotation (>1 deg)",
-              ulpDeg > 1.0);
-        check("F32 decimal year is fine for WMM secular terms (<0.01 yr)",
-              double(oneUlp) < 0.01);
+        check("F32 decimal year is UNUSABLE for Earth rotation (>1 deg)", ulpDeg > 1.0);
+        check("F32 decimal year is fine for WMM secular terms (<0.01 yr)", double(oneUlp) < 0.01);
+
+        /*
+         * The model narrows the decimal year to F32 on purpose, and only
+         * where it feeds the secular variation terms. Confirm that is
+         * the value it reports back.
+         */
+        check("model reports the F32 decimal year it evaluated at", sol.decYear == decYearF32);
     }
 
     /*
@@ -182,14 +196,63 @@ int main() {
      * ----------------------------------------------------------------------------
      */
     {
-        const Vec3 posB { -posTemeKm.x, -posTemeKm.y, posTemeKm.z };
+        const Vec3 posB{-posTemeKm.x, -posTemeKm.y, posTemeKm.z};
         double a = 0.0;
-        const Vec3 b2 = fieldTemeNt(posB, jd, gmst, a);
-        const double cosAng = vdot(vunit(bNt), vunit(b2));
+        FieldSolution other;
+        (void)evaluateAt(posB, jd, gmst, a, other);
+        const double cosAng = vdot(sol.unitTeme, other.unitTeme);
         const double angDeg = std::acos(clampUnit(cosAng)) * RAD2DEG;
         char d[64];
         std::snprintf(d, sizeof d, "(%.1f deg apart)", angDeg);
         check("field direction responds to position", angDeg > 10.0, d);
+    }
+
+    /*
+     * ----------------------------------------------------------------------------
+     * 5. Range gates. These could not be tested before the split,
+     *    because the gate lived inside a component member function that
+     *    emitted an event. Each one is checked from the side that
+     *    should trip it, with the other input held valid.
+     * ----------------------------------------------------------------------------
+     */
+    {
+        FieldQuery query;
+        query.posTemeKm = posTemeKm;
+        query.jdUt1 = jd;
+        query.gmstRad = gmst;
+
+        const FieldConfig cfg;
+        FieldSolution out;
+
+        // Above the WMM's fitted shell: a GTO apogee, not a LEO pass.
+        query.altKm = 20000.0;
+        check("altitude above the fitted shell is rejected",
+              evaluateField(query, cfg, out) == FieldResult::ALTITUDE_OUT_OF_RANGE);
+
+        // Below the ellipsoid by more than the model tolerates.
+        query.altKm = -50.0;
+        check("altitude below the ellipsoid is rejected",
+              evaluateField(query, cfg, out) == FieldResult::ALTITUDE_OUT_OF_RANGE);
+
+        // Just inside each bound must still be accepted.
+        query.altKm = static_cast<double>(cfg.maxAltKm) - 1.0;
+        check("altitude just inside the upper bound is accepted", evaluateField(query, cfg, out) == FieldResult::OK);
+
+        /*
+         * Epoch outside the coefficient set's window. WMM2025 carries
+         * linear secular terms fitted over 2025-2030; outside that it is
+         * an extrapolation that degrades quickly.
+         */
+        query.altKm = 420.0;
+        query.jdUt1 = 2451545.0;  // 2000-01-01
+        check("epoch before the coefficient window is rejected",
+              evaluateField(query, cfg, out) == FieldResult::EPOCH_OUT_OF_RANGE);
+
+        /*
+         * decYear is written before the gate, so the component can
+         * telemeter the epoch it tried alongside the rejection.
+         */
+        check("decYear is reported even on a rejected epoch", out.decYear > 1999.0f && out.decYear < 2001.0f);
     }
 
     std::printf("\n%s (%d failures)\n", g_failures == 0 ? "ALL CHECKS PASSED" : "FAILURES", g_failures);

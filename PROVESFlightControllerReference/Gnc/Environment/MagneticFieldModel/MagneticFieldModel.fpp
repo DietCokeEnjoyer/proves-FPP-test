@@ -20,11 +20,8 @@ module Environment {
     @ Orbit state from OrbitPropagator. Arrival triggers an evaluation.
     guarded input port orbitIn: Gnc.OrbitStateSend
 
-    @ Magnetic field unit vector in TEME for attitude determination.
+    @ Magnetic field vector with magnitude, TEME, nT.
     output port magRefOut: Gnc.VectorSampleSend
-
-    @ Full field vector with magnitude, TEME, nT.
-    output port fieldOut: Gnc.VectorSampleSend
 
 
     @ Rate group tick. Telemetry only.
@@ -81,6 +78,15 @@ module Environment {
       id 0x02 \
       format "Magnetic field evaluation restored"
 
+    @ Field evaluation returned a magnitude too small to be physical.
+    @ Indicates a corrupt evaluation, not an orbital condition.
+    event FieldDegenerate(
+                          magnitudeNt: F32
+                        ) \
+      severity warning high \
+      id 0x03 \
+      format "WMM returned |B| = {f} nT, evaluation is corrupt" \
+      throttle 5
     ###############################################################################
     # Standard AC Ports                                                           #
     ###############################################################################
