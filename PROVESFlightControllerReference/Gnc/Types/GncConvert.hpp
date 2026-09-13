@@ -10,7 +10,7 @@
 #define Gnc_Types_GncConvert_HPP
 
 #include "PROVESFlightControllerReference/Gnc/AstroLib/AstroLib.hpp"
-#include "PROVESFlightControllerReference/Gnc/Types/GncTypesTypes.hpp"
+#include "PROVESFlightControllerReference/Gnc/Types/GncTypes.fpp"
 
 namespace Gnc {
 

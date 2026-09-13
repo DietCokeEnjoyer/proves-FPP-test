@@ -6,21 +6,18 @@
 #define Gnc_Environment_OrbitPropagator_HPP
 
 #include "PROVESFlightControllerReference/Gnc/Environment/OrbitPropagator/OrbitPropagatorComponentAc.hpp"
-#include "PROVESFlightControllerReference/Gnc/AstroLib/AstroLib.hpp"
-
-#include <perturb/perturb.hpp>
+#include "PROVESFlightControllerReference/Gnc/Environment/OrbitPropagator/Sgp4Propagator.hpp"
 
 namespace Gnc {
 namespace Environment {
 
 /**
- * \brief Head of the GNC chain: time acquisition and SGP4 propagation.
+ * \brief Time acquisition and SGP4 propagation.
  *
  * \details Once per tick it reads the clock, builds every time scale,
  * propagates the loaded TLE, derives the ground track, and broadcasts a
- * Gnc::OrbitState. Time validity and position validity are reported
- * separately, so a spacecraft with a good clock and no TLE still drives
- * the solar ephemeris.
+ * Gnc::OrbitState.
+ *
  */
 class OrbitPropagator final : public OrbitPropagatorComponentBase {
   public:
@@ -35,12 +32,10 @@ class OrbitPropagator final : public OrbitPropagatorComponentBase {
 
   private:
     /**
-     * \brief Rate group tick. Runs the four-stage pipeline.
+     * \brief Rate group tick. Runs the pipeline.
      *
-     * \details Every exit path emits an OrbitState, including the
-     * failure paths, so downstream components can distinguish "no time"
-     * from "no TLE" from "propagator error" rather than just seeing
-     * nothing arrive.
+     * \details An OrbitState is always emitted, even on failures,
+     * as it contains diagnostic information about the failures.
      *
      * \param portNum  Port index, unused (single port)
      * \param context  Rate group context, unused
@@ -50,9 +45,7 @@ class OrbitPropagator final : public OrbitPropagatorComponentBase {
     /**
      * \brief Parse and install a new two-line element set.
      *
-     * \details Parses into a candidate first and only commits on
-     * success, so a bad uplink never leaves the spacecraft worse off
-     * than before it arrived.
+     * \details Only replaces old TLE on a successful parse.
      *
      * \param opCode  Command opcode
      * \param cmdSeq  Command sequence number
@@ -68,7 +61,8 @@ class OrbitPropagator final : public OrbitPropagatorComponentBase {
      * \brief Invalidate the loaded TLE.
      *
      * \details Position output stops; time output continues. The orbital
-     * record itself is left in place and gated off by m_tleValid.
+     * record itself is left in place and gated off by the propagator's
+     * validity flag.
      *
      * \param opCode  Command opcode
      * \param cmdSeq  Command sequence number
@@ -76,47 +70,52 @@ class OrbitPropagator final : public OrbitPropagatorComponentBase {
     void CLEAR_TLE_cmdHandler(FwOpcodeType opCode, U32 cmdSeq) override;
 
     /**
-     * \brief Stage 1. Read the time port and build every needed time scale.
+     * \brief Read the time port and decide whether the clock is usable.
      *
-     * \details The only place in the GNC chain that reads the clock for computation.
-     * Everything downstream receives jdUt1, jdTt, gmstRad
+     * \details The only place in the GNC chain that reads the clock for
+     * computation. Everything downstream receives jdUt1, jdTt, gmstRad
      * and the Fw::Time stamp inside OrbitState.
      *
      * Requires wall-clock time, not uptime.
      *
-     * \param ts     [out] UTC / UT1 / TT scales for this instant
-     * \param stamp  [out] The raw Fw::Time the scales were built from,
-     *               carried downstream as the observation epoch
-     * \return false after emitting WARNING_HI TimeMissing when the time
-     *         base is not wall clock; true otherwise
+     * \param stamp        [out] The Fw::Time read, carried
+     *                     as the observation epoch
+     * \param unixSeconds  [out] The same instant as POSIX seconds, before
+     *                     UTC_OFFSET_SEC is applied
+     * \return false when the time base is invalid, true otherwise
      */
-    bool acquireTime(Astro::TimeScales& ts, Fw::Time& stamp);
+    bool acquireTime(Fw::Time& stamp, F64& unixSeconds);
 
     /**
-     * \brief Stage 2. Propagate the loaded TLE to the current epoch (SGP4).
+     * \brief Build an OrbitConfig from the current parameter values.
      *
-     * \details The caller must have checked m_tleValid. Time since epoch
-     * is passed explicitly rather than as an absolute date, because that
-     * is the quantity SGP4's drag and secular terms are series in.
+     * \details Fields whose parameter is not VALID keep the OrbitConfig
+     * default.
      *
-     * \param ts       Time scales from acquireTime()
-     * \param posTeme  [out] Position in TEME, km
-     * \param velTeme  [out] Velocity in TEME, km/s
-     * \param ageDays  [out] Time since TLE epoch, days. Written even on
-     *                 failure, and may be negative for a future epoch.
-     * \return false after emitting WARNING_HI Sgp4Failure on propagator
-     *         error; true otherwise
+     * \return Time-scale offsets and staleness policy for solveOrbit()
      */
-    bool propagate(const Astro::TimeScales& ts,
-                   Astro::Vec3& posTeme,
-                   Astro::Vec3& velTeme,
-                   F64& ageDays);
+    OrbitConfig currentConfig();
+
+    /**
+     * \brief Pack the information from an OrbitSolution into an OrbitState to be broadcast.
+     *
+     * \details Time fields are copied on every path, position fields
+     * only when the result carried a position.
+     *
+     * \param sol     Products of this cycle
+     * \param result  How far the cycle got
+     * \param stamp   Wall-clock instant the solution describes
+     * \param state   [out] State to populate
+     */
+    static void fillState(const OrbitSolution& sol,
+                          OrbitResult result,
+                          const Fw::Time& stamp,
+                          Gnc::OrbitState& state);
 
     /**
      * \brief Stage 3. Write telemetry, including the ground track.
      *
-     * \details Reads geodetic position from the state rather than
-     * recomputing it. Keeps the ground track and the magnetic field model in agreement.
+     * \details
      *
      * \param state  Fully populated orbit state for this cycle
      */
@@ -126,21 +125,22 @@ class OrbitPropagator final : public OrbitPropagatorComponentBase {
      * \brief Stage 4. Broadcast the state on orbitOut.
      *
      * \details Fans out synchronously on this thread, so every consumer
-     * of a given cycle sees the same state and the CycleUsec budget
-     * below covers their execution too.
+     * of a given cycle sees the same state.
      *
      * \param state  Orbit state to broadcast, valid or not
      */
     void emit(const Gnc::OrbitState& state);
 
     /**
-     * The SGP4 orbital record. perturb::Satellite has no default
-     * constructor, so it is seeded with a value-initialized elsetrec
-     * and gated by m_tleValid.
+     * \brief Map the propagator's enum to the FPP enum.
+     *
+     * \param result  Propagator result code
+     * \return Equivalent Gnc::OrbitValidity
      */
-    perturb::Satellite m_sat;  //!< Valid only while m_tleValid is true
-    
-    bool m_tleValid = false;  //!< Whether m_sat holds a successfully parsed TLE
+    static Gnc::OrbitValidity toFppValidity(OrbitResult result);
+
+    //! The loaded TLE and the SGP4 record built from it.
+    Sgp4Propagator m_sgp4;
 };
 
 }  // namespace Environment

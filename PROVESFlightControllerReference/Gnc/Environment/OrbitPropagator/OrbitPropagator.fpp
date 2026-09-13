@@ -3,7 +3,7 @@
 #
 # SGP4 propagation and the time scales it needs.
 #
-# This is the only component in the GNC chain that reads the time port
+# The only component in the GNC subsystem that reads the time port
 # for computation. jdUt1, gmstRad and the Fw::Time stamp flow downstream
 # inside OrbitState. Downstream components use their time ports to 
 # timestamp events and telemetry, not for computation.
@@ -25,7 +25,7 @@ module Environment {
     @
     @ This call is synchronous into whatever it is connected
     @ to, on this component's thread. Connected to the magnetic field model
-    @ and the solar ephemeris so both evaluate at with the same position and epoch
+    @ and the solar ephemeris so both evaluate with the same position and epoch
     @ from this component.
     output port orbitOut: Gnc.OrbitStateSend
 
